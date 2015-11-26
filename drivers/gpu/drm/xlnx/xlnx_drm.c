@@ -15,6 +15,15 @@
  * GNU General Public License for more details.
  */
 
+#include <drm/drmP.h>
+#include <drm/drm_crtc_helper.h>
+#include <drm/drm_gem_cma_helper.h>
+
+#include <linux/component.h>
+#include <linux/device.h>
+#include <linux/module.h>
+#include <linux/platform_device.h>
+
 #define DRIVER_NAME	"xlnx_drm"
 #define DRIVER_DESC	"Xilinx DRM KMS support"
 #define DRIVER_DATE	"20151125"
@@ -36,7 +45,7 @@ static void xlnx_drm_disable_vblank(struct drm_device *drm, int crtc)
 
 static int xlnx_drm_load(struct drm_device *drm, unsigned long flags)
 {
-	struct xilinx_drm_private *private;
+	struct xlnx_drm_private *private;
 
 	private = devm_kzalloc(drm->dev, sizeof(*private), GFP_KERNEL);
 	if (!private)
@@ -113,12 +122,64 @@ static struct drm_driver xlnx_drm_driver = {
 };
 
 /*
+ * Power Management
+ */
+
+static int __maybe_unused xlnx_drm_pm_suspend(struct device *dev)
+{
+	struct xlnx_drm_private *private = dev_get_drvdata(dev);
+	struct drm_device *drm = private->drm;
+	struct drm_connector *connector;
+
+	drm_modeset_lock_all(drm);
+	drm_kms_helper_poll_disable(drm);
+	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
+		int old_dpms = connector->dpms;
+
+		if (connector->funcs->dpms)
+			connector->funcs->dpms(connector,
+					       DRM_MODE_DPMS_SUSPEND);
+
+		connector->dpms = old_dpms;
+	}
+	drm_modeset_unlock_all(drm);
+
+	return 0;
+}
+
+static int __maybe_unused xlnx_drm_pm_resume(struct device *dev)
+{
+	struct xlnx_drm_private *private = dev_get_drvdata(dev);
+	struct drm_device *drm = private->drm;
+	struct drm_connector *connector;
+
+	drm_modeset_lock_all(drm);
+	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
+		if (connector->funcs->dpms) {
+			int dpms = connector->dpms;
+
+			connector->dpms = DRM_MODE_DPMS_OFF;
+			connector->funcs->dpms(connector, dpms);
+		}
+	}
+	drm_kms_helper_poll_enable(drm);
+	drm_modeset_unlock_all(drm);
+
+	return 0;
+}
+
+static const struct dev_pm_ops xlnx_drm_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(xlnx_drm_pm_suspend, xlnx_drm_pm_resume)
+	SET_RUNTIME_PM_OPS(xlnx_drm_pm_suspend, xlnx_drm_pm_resume, NULL)
+};
+
+/*
  * Component framework support
  */
 
 static int xlnx_drm_bind(struct device *dev)
 {
-	return drm_platform_init(&xlnx_driver, to_platform_device(dev));
+	return drm_platform_init(&xlnx_drm_driver, to_platform_device(dev));
 }
 
 static void xlnx_drm_unbind(struct device *dev)
