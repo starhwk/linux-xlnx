@@ -207,6 +207,8 @@ source "drivers/gpu/drm/sti/Kconfig"
 
 source "drivers/gpu/drm/xilinx/Kconfig"
 
+source "drivers/gpu/drm/xlnx/Kconfig"
+
 source "drivers/gpu/drm/xylon/Kconfig"
 
 source "drivers/gpu/drm/amd/amdkfd/Kconfig"
