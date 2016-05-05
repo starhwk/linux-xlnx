@@ -1,0 +1,10 @@
+#include "zynqmp-zcu102-revB.dts"
+
+&gpu {
+	reg = <0x0 0xa0000000 0x30000>;
+	interrupts = <0 89 4>, <0 89 4>, <0 89 4>, <0 89 4>, <0 89 4>, <0 89 4>;
+};
+
+&xilinx_drm {
+	clocks = <&si570_2>;
+};
