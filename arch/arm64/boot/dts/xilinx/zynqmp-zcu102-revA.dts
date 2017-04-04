@@ -184,7 +184,7 @@
 		gtr_sel0 {
 			gpio-hog;
 			gpios = <0 0>;
-			output-low; /* PCIE = 0, DP = 1 */
+			output-high; /* PCIE = 0, DP = 1 */
 			line-name = "sel0";
 		};
 		gtr_sel1 {
@@ -841,7 +841,7 @@ drivers/hwmon/pmbus/Makefile:11:obj-$(CONFIG_SENSORS_MAX20751)  += max20751.o
 };
 
 &pcie {
-	status = "okay";
+/*	status = "okay"; */
 };
 
 &qspi {
