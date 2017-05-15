@@ -41,6 +41,10 @@ module_param_named(aux_timeout_ms, xilinx_drm_dp_aux_timeout_ms, uint, 0444);
 MODULE_PARM_DESC(aux_timeout_ms,
 		 "DP aux timeout value in msec (default: 50)");
 
+static int xilinx_drm_dp_debug_hfp = 400;
+module_param_named(debug_hfp, xilinx_drm_dp_debug_hfp, int, 0644);
+MODULE_PARM_DESC(debug_hfp, "debug");
+
 /* Link configuration registers */
 #define XILINX_DP_TX_LINK_BW_SET			0x0
 #define XILINX_DP_TX_LANE_CNT_SET			0x4
@@ -1472,6 +1476,19 @@ static bool xilinx_drm_dp_mode_fixup(struct drm_encoder *encoder,
 
 		diff = XILINX_DP_SUB_TX_MIN_H_BACKPORCH - diff;
 		adjusted_mode->htotal += diff;
+		adjusted_mode->clock = adjusted_mode->vtotal *
+				       adjusted_mode->htotal * vrefresh / 1000;
+	}
+
+	diff = mode->hsync_start - mode->hdisplay;
+	if (dp->dp_sub && (mode->hsync_start - mode->hdisplay > xilinx_drm_dp_debug_hfp)) {
+		int vrefresh = (adjusted_mode->clock * 1000) /
+			       (adjusted_mode->vtotal * adjusted_mode->htotal);
+
+		diff = diff - xilinx_drm_dp_debug_hfp;
+		adjusted_mode->htotal -= diff;
+		adjusted_mode->hsync_end -= diff;
+		adjusted_mode->hsync_start -= diff;
 		adjusted_mode->clock = adjusted_mode->vtotal *
 				       adjusted_mode->htotal * vrefresh / 1000;
 	}
