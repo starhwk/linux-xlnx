@@ -106,6 +106,7 @@
  * @xvip: Xilinx Video IP device
  * @pads: media pads
  * @npads: number of pads (1 or 2)
+ * @ppc: Pixels per clock (1, 2, 4, or 8)
  * @has_input: whether an input is connected to the sink pad
  * @formats: active V4L2 media bus format for each pad
  * @default_format: default V4L2 media bus format
@@ -126,6 +127,7 @@ struct xtpg_device {
 
 	struct media_pad pads[2];
 	unsigned int npads;
+	unsigned int ppc;
 	bool has_input;
 
 	struct v4l2_mbus_framefmt formats[2];
@@ -168,20 +170,20 @@ static u32 xtpg_get_bayer_phase(unsigned int code)
 
 static void xtpg_config_vtc(struct xtpg_device *xtpg, int width, int height)
 {
-
+	u32 ppc = xtpg->ppc;
 	struct xvtc_config config = {
-		.hblank_start = width,
-		.hsync_start = width + 1,
-		.vblank_start = height,
-		.vsync_start = height + 1,
+		.hblank_start = width / ppc,
+		.hsync_start = width / ppc + 1,
+		.vblank_start = height / ppc,
+		.vsync_start = height / ppc + 1,
 	};
 	unsigned int htotal;
 	unsigned int vtotal;
 
 	htotal = min_t(unsigned int, XVTC_MAX_HSIZE,
-		       v4l2_ctrl_g_ctrl(xtpg->hblank) + width);
+		       v4l2_ctrl_g_ctrl(xtpg->hblank) / ppc + width / ppc);
 	vtotal = min_t(unsigned int, XVTC_MAX_VSIZE,
-		       v4l2_ctrl_g_ctrl(xtpg->vblank) + height);
+		       v4l2_ctrl_g_ctrl(xtpg->vblank) / ppc + height / ppc);
 
 	config.hsync_end = htotal - 1;
 	config.hsize = htotal;
@@ -892,6 +894,7 @@ static int xtpg_parse_of(struct xtpg_device *xtpg)
 	struct device_node *port;
 	unsigned int nports = 0;
 	bool has_endpoint = false;
+	int ret;
 
 	if (of_device_is_compatible(dev->of_node, "xlnx,v-tpg-7.0"))
 		xtpg->is_hls = true;
@@ -942,6 +945,14 @@ static int xtpg_parse_of(struct xtpg_device *xtpg)
 	xtpg->npads = nports;
 	if (nports == 2 && has_endpoint)
 		xtpg->has_input = true;
+
+	ret = of_property_read_u32(node, "xlnx,ppc", &xtpg->ppc);
+	if (ret ||
+	    (xtpg->ppc != 1 && xtpg->ppc != 2 && xtpg->ppc != 4
+	     && xtpg->ppc != 8)) {
+		dev_info(dev, "invalid ppc in DT. The ppc is set to 1\n");
+		xtpg->ppc = 1;
+	}
 
 	return 0;
 }
