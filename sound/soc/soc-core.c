@@ -2077,7 +2077,7 @@ static int soc_cleanup_card_resources(struct snd_soc_card *card)
 		flush_delayed_work(&rtd->delayed_work);
 
 	/* remove and free each DAI */
-	soc_remove_dai_links(card);
+//	soc_remove_dai_links(card);
 	soc_remove_pcm_runtimes(card);
 
 	/* remove auxiliary devices */
