@@ -26,6 +26,7 @@
 static const struct snd_pcm_hardware xilinx_pcm_hw = {
 	.info			= SNDRV_PCM_INFO_MMAP |
 				  SNDRV_PCM_INFO_MMAP_VALID |
+				  SNDRV_PCM_INFO_BATCH |
 				  SNDRV_PCM_INFO_INTERLEAVED |
 				  SNDRV_PCM_INFO_PAUSE |
 				  SNDRV_PCM_INFO_RESUME |
