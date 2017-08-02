@@ -1,0 +1,123 @@
+&amba {
+	xlnx_drm: xlnx_drm {
+		compatible = "xlnx,kms";
+		status = "okay";
+		ports = <&crtc_port>;
+	};
+
+	zynqmp_dpsub: zynqmp_dpsub@fd4a0000 {
+		compatible = "xlnx,zynqmp-dpsub-1.7";
+		status = "okay";
+		reg = <0x0 0xfd4a0000 0x0 0x1000>,
+		      <0x0 0xfd4aa000 0x0 0x1000>,
+		      <0x0 0xfd4ab000 0x0 0x1000>,
+		      <0x0 0xfd4ac000 0x0 0x1000>;
+		reg-names = "dp", "blend", "av_buf", "aud";
+		interrupts = <0 119 4>;
+		interrupt-parent = <&gic>;
+
+		clock-names = "dp_apb_clk", "dp_aud_clk", "dp_vtc_pixel_clk_in";
+		clocks = <&dp_aclk>, <&clkc 17>, <&clkc 16>;
+
+		dma-names = "graphics0", "video0", "video1", "video2";
+		dmas = <&xlnx_dpdma 3>,
+		       <&xlnx_dpdma 0>,
+		       <&xlnx_dpdma 1>,
+		       <&xlnx_dpdma 2>;
+		power-domains = <&pd_dp>;
+
+		phy-names = "dp-phy0", "dp-phy1";
+		phys = <&lane1 PHY_TYPE_DP 0 1 27000000>,
+		       <&lane0 PHY_TYPE_DP 1 1 27000000>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		vid-layer {
+			dma-names = "vid0", "vid1", "vid2";
+			dmas = <&xlnx_dpdma 0>,
+			       <&xlnx_dpdma 1>,
+			       <&xlnx_dpdma 2>;
+		};
+
+		gfx-layer {
+			dma-names = "gfx0";
+			dmas = <&xlnx_dpdma 3>;
+		};
+
+		i2c-bus {
+			/* FIXME: dummy to avoid the error messages */
+		};
+
+		crtc_port: port@0 {
+			reg = <0>;
+			crtc: endpoint {
+				remote-endpoint = <&encoder>;
+			};
+		};
+		port@1 {
+			reg = <1>;
+			encoder: endpoint {
+				remote-endpoint = <&crtc>;
+			};
+		};
+
+		zynqmp_dp_snd_codec0: zynqmp_dp_snd_codec0 {
+			compatible = "xlnx,dp-snd-codec";
+			status = "okay";
+			clock-names = "aud_clk";
+			clocks = <&clkc 17>;
+		};
+
+		zynqmp_dp_snd_pcm0: zynqmp_dp_snd_pcm0 {
+			compatible = "xlnx,dp-snd-pcm";
+			status = "okay";
+			dmas = <&xlnx_dpdma 4>;
+			dma-names = "tx";
+		};
+
+		zynqmp_dp_snd_pcm1: zynqmp_dp_snd_pcm1 {
+			compatible = "xlnx,dp-snd-pcm";
+			status = "okay";
+			dmas = <&xlnx_dpdma 5>;
+			dma-names = "tx";
+		};
+
+		zynqmp_dp_snd_card {
+			compatible = "xlnx,dp-snd-card";
+			status = "okay";
+			xlnx,dp-snd-pcm = <&zynqmp_dp_snd_pcm0>, <&zynqmp_dp_snd_pcm1>;
+			xlnx,dp-snd-codec = <&zynqmp_dp_snd_codec0>;
+
+		};
+	};
+};
+
+&xilinx_drm {
+	status = "disabled";
+};
+
+&xlnx_dp {
+	status = "disabled";
+};
+
+&xlnx_dp_sub {
+	status = "disabled";
+};
+
+&xlnx_dp_snd_pcm0 {
+	status = "disabled";
+};
+
+&xlnx_dp_snd_pcm1 {
+	status = "disabled";
+};
+
+&xlnx_dp_snd_card {
+	status = "disabled";
+};
+
+&xlnx_dp_snd_codec0 {
+	status = "disabled";
+};
+

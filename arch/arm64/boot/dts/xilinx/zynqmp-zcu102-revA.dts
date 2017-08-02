@@ -18,6 +18,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pinctrl/pinctrl-zynqmp.h>
 #include <dt-bindings/phy/phy.h>
+#include "zynqmp_dp.dtsi"
 
 / {
 	model = "ZynqMP ZCU102 RevA";
@@ -947,36 +948,6 @@ drivers/hwmon/pmbus/Makefile:11:obj-$(CONFIG_SENSORS_MAX20751)  += max20751.o
 };
 
 &ams_pl {
-	status = "okay";
-};
-
-&xilinx_drm {
-	status = "okay";
-};
-
-&xlnx_dp {
-	status = "okay";
-	phy-names = "dp-phy0", "dp-phy1";
-	phys = <&lane1 PHY_TYPE_DP 0 3 27000000>, <&lane0 PHY_TYPE_DP 1 3 27000000>;
-};
-
-&xlnx_dp_sub {
-	status = "okay";
-};
-
-&xlnx_dp_snd_pcm0 {
-	status = "okay";
-};
-
-&xlnx_dp_snd_pcm1 {
-	status = "okay";
-};
-
-&xlnx_dp_snd_card {
-	status = "okay";
-};
-
-&xlnx_dp_snd_codec0 {
 	status = "okay";
 };
 
