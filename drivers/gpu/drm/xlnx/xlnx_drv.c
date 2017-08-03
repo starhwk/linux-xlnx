@@ -30,7 +30,9 @@
 #include <linux/platform_device.h>
 #include <linux/reservation.h>
 
+#include "xlnx_bridge.h"
 #include "xlnx_crtc.h"
+#include "xlnx_drv.h"
 #include "xlnx_fb.h"
 #include "xlnx_gem.h"
 
@@ -49,6 +51,7 @@ MODULE_PARM_DESC(fbdev_vres,
  * struct xlnx_drm - Xilinx DRM private data
  * @drm: DRM core
  * @crtc: Xilinx DRM CRTC helper
+ * @bridge: Xilinx DRM bridge helper
  * @fb: DRM fb helper
  * @pdev: platform device
  * @suspend_state: atomic state for suspend / resume
@@ -56,6 +59,7 @@ MODULE_PARM_DESC(fbdev_vres,
 struct xlnx_drm {
 	struct drm_device *drm;
 	struct xlnx_crtc_helper *crtc;
+	struct xlnx_bridge_helper *bridge;
 	struct drm_fb_helper *fb;
 	struct platform_device *pdev;
 	struct drm_atomic_state *suspend_state;
@@ -72,6 +76,19 @@ struct xlnx_crtc_helper *xlnx_get_crtc_helper(struct drm_device *drm)
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
 	return xlnx_drm->crtc;
+}
+
+/**
+ * xlnx_get_bridge_helper - Return the bridge helper instance
+ * @drm: DRM device
+ *
+ * Return: the bridge helper instance
+ */
+struct xlnx_bridge_helper *xlnx_get_bridge_helper(struct drm_device *drm)
+{
+	struct xlnx_drm *xlnx_drm = drm->dev_private;
+
+	return xlnx_drm->bridge;
 }
 
 /**
@@ -177,9 +194,15 @@ static int xlnx_load(struct drm_device *drm, unsigned long flags)
 		goto err_vblank;
 	}
 
+	xlnx_drm->bridge = xlnx_bridge_helper_init(drm);
+	if (IS_ERR(xlnx_drm->bridge)) {
+		ret = PTR_ERR(xlnx_drm->bridge);
+		goto err_crtc;
+	}
+
 	ret = component_bind_all(drm->dev, drm);
 	if (ret)
-		goto err_crtc;
+		goto err_bridge;
 
 	xlnx_mode_config_init(drm);
 	drm_mode_config_reset(drm);
@@ -202,6 +225,8 @@ static int xlnx_load(struct drm_device *drm, unsigned long flags)
 
 err_component:
 	component_unbind_all(drm->dev, drm);
+err_bridge:
+	xlnx_bridge_helper_fini(drm, xlnx_drm->bridge);
 err_crtc:
 	xlnx_crtc_helper_fini(drm, xlnx_drm->crtc);
 err_vblank:
@@ -217,6 +242,7 @@ static int xlnx_unload(struct drm_device *drm)
 
 	xlnx_fb_fini(xlnx_drm->fb);
 	component_unbind_all(drm->dev, drm);
+	xlnx_bridge_helper_fini(drm, xlnx_drm->bridge);
 	xlnx_crtc_helper_fini(drm, xlnx_drm->crtc);
 	drm_vblank_cleanup(drm);
 	drm_kms_helper_poll_fini(drm);
