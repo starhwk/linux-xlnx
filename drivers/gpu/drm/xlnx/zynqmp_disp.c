@@ -24,6 +24,7 @@
 #include <drm/drm_plane_helper.h>
 
 #include <linux/clk.h>
+#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/dmaengine.h>
 #include <linux/interrupt.h>
@@ -512,6 +513,357 @@ static void zynqmp_disp_set(void __iomem *base, int offset, u32 set)
 {
 	zynqmp_disp_write(base, offset, zynqmp_disp_read(base, offset) | set);
 }
+
+#ifdef CONFIG_DRM_ZYNQMP_DISP_DEBUG_FS
+
+#define ZYNQMP_DISP_DEBUGFS_READ_MAX_SIZE	32UL
+#define ZYNQMP_DISP_DEBUGFS_MAX_BG_COLOR_VAL	0xFFF
+#define IN_RANGE(x, min, max) ({		\
+		typeof(x) _x = (x);		\
+		_x >= (min) && _x <= (max); })
+
+/* Match xilinx_dp_testcases vs dp_debugfs_reqs[] entry */
+enum zynqmp_disp_testcases {
+	DP_SUB_TC_BG_COLOR,
+	DP_SUB_TC_OUTPUT_FMT,
+	DP_SUB_TC_NONE
+};
+
+struct zynqmp_disp_debugfs {
+	enum zynqmp_disp_testcases testcase;
+	u16 r_value;
+	u16 g_value;
+	u16 b_value;
+	u32 output_fmt;
+	struct zynqmp_disp *zynqmp_disp;
+};
+
+static struct dentry *zynqmp_disp_debugfs_dir;
+struct zynqmp_disp_debugfs disp_debugfs;
+struct zynqmp_disp_debugfs_request {
+	const char *req;
+	enum zynqmp_disp_testcases tc;
+	ssize_t (*read_handler)(char **kern_buff);
+	ssize_t (*write_handler)(char **cmd);
+};
+
+static s64 zynqmp_disp_debugfs_argument_value(char *arg)
+{
+	s64 value;
+
+	if (!arg)
+		return -1;
+
+	if (!kstrtos64(arg, 0, &value))
+		return value;
+
+	return -1;
+}
+
+static void
+zynqmp_disp_debugfs_update_v_blend(u16 *sdtv_coeffs, u32 *full_range_offsets)
+{
+	struct zynqmp_disp *disp = disp_debugfs.zynqmp_disp;
+	u32 offset, i;
+
+	/* Hardcode SDTV coefficients. Can be runtime configurable */
+	offset = ZYNQMP_DISP_V_BLEND_RGB2YCBCR_COEFF0;
+	for (i = 0; i < ZYNQMP_DISP_V_BLEND_NUM_COEFF; i++)
+		zynqmp_disp_write(disp->blend.base, offset + i * 4,
+				  sdtv_coeffs[i]);
+
+	offset = ZYNQMP_DISP_V_BLEND_LUMA_OUTCSC_OFFSET;
+	for (i = 0; i < ZYNQMP_DISP_V_BLEND_NUM_OFFSET; i++)
+		zynqmp_disp_write(disp->blend.base, offset + i * 4,
+				  full_range_offsets[i]);
+}
+
+static void zynqmp_disp_debugfs_output_format(u32 fmt)
+{
+	struct zynqmp_disp *disp = disp_debugfs.zynqmp_disp;
+
+	zynqmp_disp_write(disp->blend.base,
+			  ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT, fmt);
+
+	if (fmt != ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT_RGB) {
+		u16 sdtv_coeffs[] = { 0x4c9, 0x864, 0x1d3,
+				      0x7d4d, 0x7ab3, 0x800,
+				      0x800, 0x794d, 0x7eb3 };
+		u32 full_range_offsets[] = { 0x0, 0x8000000, 0x8000000 };
+
+		zynqmp_disp_debugfs_update_v_blend(sdtv_coeffs,
+						   full_range_offsets);
+	} else {
+		/* In case of RGB set the reset values*/
+		u16 sdtv_coeffs[] = { 0x1000, 0x0, 0x0,
+				      0x0, 0x1000, 0x0,
+				      0x0, 0x0, 0x1000 };
+		u32 full_range_offsets[] = { 0x0, 0x0, 0x0 };
+
+		zynqmp_disp_debugfs_update_v_blend(sdtv_coeffs,
+						   full_range_offsets);
+	}
+}
+
+static ssize_t
+zynqmp_disp_debugfs_background_color_write(char **disp_test_arg)
+{
+	char *r_color, *g_color, *b_color;
+	s64 r_val, g_val, b_val;
+
+	r_color = strsep(disp_test_arg, " ");
+	g_color = strsep(disp_test_arg, " ");
+	b_color = strsep(disp_test_arg, " ");
+
+	/* char * to int conversion */
+	r_val = zynqmp_disp_debugfs_argument_value(r_color);
+	g_val = zynqmp_disp_debugfs_argument_value(g_color);
+	b_val = zynqmp_disp_debugfs_argument_value(b_color);
+
+	if (!(IN_RANGE(r_val, 0, ZYNQMP_DISP_DEBUGFS_MAX_BG_COLOR_VAL) &&
+	      IN_RANGE(g_val, 0, ZYNQMP_DISP_DEBUGFS_MAX_BG_COLOR_VAL) &&
+	      IN_RANGE(b_val, 0, ZYNQMP_DISP_DEBUGFS_MAX_BG_COLOR_VAL)))
+		return -EINVAL;
+
+	disp_debugfs.r_value = r_val;
+	disp_debugfs.g_value = g_val;
+	disp_debugfs.b_value = b_val;
+
+	disp_debugfs.testcase = DP_SUB_TC_BG_COLOR;
+
+	return 0;
+}
+
+static ssize_t
+zynqmp_disp_debugfs_output_display_format_write(char **disp_test_arg)
+{
+	char *output_format;
+	struct zynqmp_disp *disp = disp_debugfs.zynqmp_disp;
+	u32 fmt;
+
+	/* Read the value from an user value */
+	output_format = strsep(disp_test_arg, " ");
+	if (strncmp(output_format, "rgb", 3) == 0) {
+		fmt = ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT_RGB;
+	} else if (strncmp(output_format, "ycbcr444", 8) == 0) {
+		fmt = ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT_YCBCR444;
+	} else if (strncmp(output_format, "ycbcr422", 8) == 0) {
+		fmt = ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT_YCBCR422;
+		fmt |= ZYNQMP_DISP_V_BLEND_OUTPUT_EN_DOWNSAMPLE;
+	} else if (strncmp(output_format, "yonly", 5) == 0) {
+		fmt = ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT_YONLY;
+	} else {
+		dev_err(disp->dev, "Invalid output format\n");
+		return -EINVAL;
+	}
+
+	disp_debugfs.output_fmt =
+			zynqmp_disp_read(disp->blend.base,
+					 ZYNQMP_DISP_V_BLEND_OUTPUT_VID_FMT);
+
+	zynqmp_disp_debugfs_output_format(fmt);
+	disp_debugfs.testcase = DP_SUB_TC_OUTPUT_FMT;
+
+	return 0;
+}
+
+static ssize_t
+zynqmp_disp_debugfs_output_display_format_read(char **kern_buff)
+{
+	size_t out_str_len;
+
+	disp_debugfs.testcase = DP_SUB_TC_NONE;
+	zynqmp_disp_debugfs_output_format(disp_debugfs.output_fmt);
+
+	out_str_len = strlen("Success");
+	out_str_len = min(ZYNQMP_DISP_DEBUGFS_READ_MAX_SIZE, out_str_len);
+	snprintf(*kern_buff, out_str_len, "%s", "Success");
+
+	return 0;
+}
+
+static ssize_t
+zynqmp_disp_debugfs_background_color_read(char **kern_buff)
+{
+	size_t out_str_len;
+
+	disp_debugfs.testcase = DP_SUB_TC_NONE;
+	disp_debugfs.r_value = 0;
+	disp_debugfs.g_value = 0;
+	disp_debugfs.b_value = 0;
+
+	out_str_len = strlen("Success");
+	out_str_len = min(ZYNQMP_DISP_DEBUGFS_READ_MAX_SIZE, out_str_len);
+	snprintf(*kern_buff, out_str_len, "%s", "Success");
+
+	return 0;
+}
+
+/* Match xilinx_dp_testcases vs dp_debugfs_reqs[] entry */
+struct zynqmp_disp_debugfs_request disp_debugfs_reqs[] = {
+	{"BACKGROUND_COLOR", DP_SUB_TC_BG_COLOR,
+		zynqmp_disp_debugfs_background_color_read,
+		zynqmp_disp_debugfs_background_color_write},
+	{"OUTPUT_DISPLAY_FORMAT", DP_SUB_TC_OUTPUT_FMT,
+		zynqmp_disp_debugfs_output_display_format_read,
+		zynqmp_disp_debugfs_output_display_format_write},
+};
+
+static ssize_t
+zynqmp_disp_debugfs_write(struct file *f, const char __user *buf,
+			  size_t size, loff_t *pos)
+{
+	char *kern_buff, *disp_test_req;
+	int ret;
+	unsigned int i;
+
+	if (*pos != 0 || size <= 0)
+		return -EINVAL;
+
+	if (disp_debugfs.testcase != DP_SUB_TC_NONE)
+		return -EBUSY;
+
+	kern_buff = kzalloc(size, GFP_KERNEL);
+	if (!kern_buff)
+		return -ENOMEM;
+
+	ret = strncpy_from_user(kern_buff, buf, size);
+	if (ret < 0) {
+		kfree(kern_buff);
+		return ret;
+	}
+
+	/* Read the testcase name and argument from an user request */
+	disp_test_req = strsep(&kern_buff, " ");
+
+	for (i = 0; i < ARRAY_SIZE(disp_debugfs_reqs); i++) {
+		if (!strcasecmp(disp_test_req, disp_debugfs_reqs[i].req))
+			if (!disp_debugfs_reqs[i].write_handler(&kern_buff)) {
+				kfree(kern_buff);
+				return size;
+			}
+	}
+	kfree(kern_buff);
+	return -EINVAL;
+}
+
+static ssize_t zynqmp_disp_debugfs_read(struct file *f, char __user *buf,
+					size_t size, loff_t *pos)
+{
+	char *kern_buff = NULL;
+	size_t kern_buff_len, out_str_len;
+	int ret;
+
+	if (size <= 0)
+		return -EINVAL;
+
+	if (*pos != 0)
+		return 0;
+
+	kern_buff = kzalloc(ZYNQMP_DISP_DEBUGFS_READ_MAX_SIZE, GFP_KERNEL);
+	if (!kern_buff) {
+		disp_debugfs.testcase = DP_SUB_TC_NONE;
+		return -ENOMEM;
+	}
+
+	if (disp_debugfs.testcase == DP_SUB_TC_NONE) {
+		out_str_len = strlen("No testcase executed");
+		out_str_len = min(ZYNQMP_DISP_DEBUGFS_READ_MAX_SIZE,
+				  out_str_len);
+		snprintf(kern_buff, out_str_len, "%s", "No testcase executed");
+	} else {
+		ret = disp_debugfs_reqs[disp_debugfs.testcase].read_handler(
+				&kern_buff);
+		if (ret) {
+			kfree(kern_buff);
+			return ret;
+		}
+	}
+
+	kern_buff_len = strlen(kern_buff);
+	size = min(size, kern_buff_len);
+
+	ret = copy_to_user(buf, kern_buff, size);
+
+	kfree(kern_buff);
+	if (ret)
+		return ret;
+
+	*pos = size + 1;
+	return size;
+}
+
+static const struct file_operations fops_zynqmp_disp_dbgfs = {
+	.owner = THIS_MODULE,
+	.read = zynqmp_disp_debugfs_read,
+	.write = zynqmp_disp_debugfs_write,
+};
+
+static int zynqmp_disp_debugfs_init(struct zynqmp_disp *disp)
+{
+	int err;
+	struct dentry *zynqmp_disp_debugfs_file;
+
+	disp_debugfs.testcase = DP_SUB_TC_NONE;
+	disp_debugfs.zynqmp_disp = disp;
+
+	zynqmp_disp_debugfs_dir = debugfs_create_dir("disp", NULL);
+	if (!zynqmp_disp_debugfs_dir) {
+		dev_err(disp->dev, "debugfs_create_dir failed\n");
+		return -ENODEV;
+	}
+
+	zynqmp_disp_debugfs_file =
+		debugfs_create_file("testcase", 0444,
+				    zynqmp_disp_debugfs_dir, NULL,
+				    &fops_zynqmp_disp_dbgfs);
+	if (!zynqmp_disp_debugfs_file) {
+		dev_err(disp->dev, "debugfs_create_file testcase failed\n");
+		err = -ENODEV;
+		goto err_dbgfs;
+	}
+	return 0;
+
+err_dbgfs:
+	debugfs_remove_recursive(zynqmp_disp_debugfs_dir);
+	zynqmp_disp_debugfs_dir = NULL;
+	return err;
+}
+
+static void zynqmp_disp_debugfs_exit(struct zynqmp_disp *disp)
+{
+	debugfs_remove_recursive(zynqmp_disp_debugfs_dir);
+	zynqmp_disp_debugfs_dir = NULL;
+}
+
+static void zynqmp_disp_debugfs_bg_color(struct zynqmp_disp *disp)
+{
+	if (disp_debugfs.testcase == DP_SUB_TC_BG_COLOR) {
+		zynqmp_disp_write(disp->blend.base,
+				  ZYNQMP_DISP_V_BLEND_BG_CLR_0,
+				  disp_debugfs.r_value);
+		zynqmp_disp_write(disp->blend.base,
+				  ZYNQMP_DISP_V_BLEND_BG_CLR_1,
+				  disp_debugfs.g_value);
+		zynqmp_disp_write(disp->blend.base,
+				  ZYNQMP_DISP_V_BLEND_BG_CLR_2,
+				  disp_debugfs.b_value);
+	}
+}
+#else
+static void zynqmp_disp_debugfs_exit(struct zynqmp_disp *disp)
+{
+}
+
+static int zynqmp_disp_debugfs_init(struct zynqmp_disp *disp)
+{
+	return 0;
+}
+
+static void zynqmp_disp_debugfs_bg_color(struct zynqmp_disp *disp)
+{
+}
+#endif /* CONFIG_DP_DEBUG_FS */
 
 /*
  * Clock functions
@@ -1926,6 +2278,7 @@ static void zynqmp_disp_set_bg_color(struct zynqmp_disp *disp,
 				     u32 c0, u32 c1, u32 c2)
 {
 	zynqmp_disp_blend_set_bg_color(&disp->blend, c0, c1, c2);
+	zynqmp_disp_debugfs_bg_color(disp);
 }
 
 /**
@@ -2905,6 +3258,7 @@ int zynqmp_disp_probe(struct platform_device *pdev)
 	ret = zynqmp_disp_layer_create(disp);
 	if (ret)
 		goto error_aclk;
+	zynqmp_disp_debugfs_init(disp);
 
 	return 0;
 
@@ -2918,6 +3272,7 @@ int zynqmp_disp_remove(struct platform_device *pdev)
 	struct zynqmp_dpsub *dpsub = platform_get_drvdata(pdev);
 	struct zynqmp_disp *disp = dpsub->disp;
 
+	zynqmp_disp_debugfs_exit(disp);
 	zynqmp_disp_layer_destroy(disp);
 	if (disp->audclk)
 		zynqmp_disp_clk_disable(disp->audclk, &disp->audclk_en);
