@@ -27,6 +27,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/phy/phy.h>
+#include <linux/phy/phy-zynqmp.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/uaccess.h>
@@ -38,11 +39,12 @@ static uint zynqmp_dp_aux_timeout_ms = 50;
 module_param_named(aux_timeout_ms, zynqmp_dp_aux_timeout_ms, uint, 0444);
 MODULE_PARM_DESC(aux_timeout_ms, "DP aux timeout value in msec (default: 50)");
 
-/* Some sink with long horizontal front porch can cause some issue
+/*
+ * Some sink with long horizontal front porch can cause some issue
  * with vsync timing. This is to debug the issue and give users some control
  * until it's root-caused. For example, setting this to 400 fixes some problem.
  */
-static int zynqmp_dp_debug_hfp = 400;
+static int zynqmp_dp_debug_hfp = INT_MAX;
 module_param_named(debug_hfp, zynqmp_dp_debug_hfp, int, 0644);
 MODULE_PARM_DESC(debug_hfp, "horizontal front porch debug");
 
@@ -479,6 +481,15 @@ static int zynqmp_dp_init_phy(struct zynqmp_dp *dp)
 	zynqmp_dp_clr(dp->iomem, ZYNQMP_DP_TX_PHY_CONFIG,
 		      ZYNQMP_DP_TX_PHY_CONFIG_ALL_RESET);
 
+	/* Wait for PLL to be locked for the primary (1st) lane */
+	if (dp->phy[0]) {
+		ret = xpsgtr_wait_pll_lock(dp->phy[0]);
+		if (ret) {
+			dev_err(dp->dev, "failed to lock pll\n");
+			return ret;
+		}
+	}
+
 	return 0;
 }
 
@@ -662,6 +673,8 @@ static int zynqmp_dp_update_vs_emph(struct zynqmp_dp *dp)
 		p_level = (train_set[i] & DP_TRAIN_PRE_EMPHASIS_MASK) >>
 			  DP_TRAIN_PRE_EMPHASIS_SHIFT;
 
+		xpsgtr_margining_factor(dp->phy[i], p_level, v_level);
+		xpsgtr_override_deemph(dp->phy[i], p_level, v_level);
 		zynqmp_dp_write(dp->iomem, reg, 0x2);
 	}
 
@@ -1332,10 +1345,20 @@ zynqmp_dp_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct zynqmp_dp *dp = connector_to_dp(connector);
 	struct zynqmp_dp_link_config *link_config = &dp->link_config;
-	u32 state;
+	u32 state, i;
 	int ret;
 
-	state = zynqmp_dp_read(dp->iomem, ZYNQMP_DP_TX_INTR_SIGNAL_STATE);
+	/*
+	 * This is from heuristic. It takes some delay (ex, 100 ~ 500 msec) to
+	 * get the HPD signal with some monitors.
+	 */
+	for (i = 0; i < 10; i++) {
+		state = zynqmp_dp_read(dp->iomem, ZYNQMP_DP_TX_INTR_SIGNAL_STATE);
+		if (state & ZYNQMP_DP_TX_INTR_SIGNAL_STATE_HPD)
+			break;
+		msleep(100);
+	}
+
 	if (state & ZYNQMP_DP_TX_INTR_SIGNAL_STATE_HPD) {
 		ret = drm_dp_dpcd_read(&dp->aux, 0x0, dp->dpcd,
 				       sizeof(dp->dpcd));
@@ -1471,6 +1494,7 @@ static const struct drm_connector_funcs zynqmp_dp_connector_funcs = {
 	.reset			= drm_atomic_helper_connector_reset,
 	.atomic_set_property	= zynqmp_dp_connector_atomic_set_property,
 	.atomic_get_property	= zynqmp_dp_connector_atomic_get_property,
+	.set_property		= drm_atomic_helper_connector_set_property,
 };
 
 static struct drm_connector_helper_funcs zynqmp_dp_connector_helper_funcs = {
@@ -1708,9 +1732,9 @@ static irqreturn_t zynqmp_dp_irq_handler(int irq, void *data)
 
 	/* dbg for diagnostic, but not much that the driver can do */
 	if (status & ZYNQMP_DP_TX_INTR_CHBUF_UNDERFLW_MASK)
-		dev_err_ratelimited(dp->dev, "underflow interrupt\n");
+		dev_dbg_ratelimited(dp->dev, "underflow interrupt\n");
 	if (status & ZYNQMP_DP_TX_INTR_CHBUF_OVERFLW_MASK)
-		dev_err_ratelimited(dp->dev, "overflow interrupt\n");
+		dev_dbg_ratelimited(dp->dev, "overflow interrupt\n");
 
 	zynqmp_dp_write(dp->iomem, ZYNQMP_DP_SUB_TX_INTR_STATUS, status);
 

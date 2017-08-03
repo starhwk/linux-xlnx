@@ -2014,6 +2014,8 @@ static void zynqmp_disp_enable(struct zynqmp_disp *disp)
  */
 static void zynqmp_disp_disable(struct zynqmp_disp *disp, bool force)
 {
+	struct drm_crtc *crtc = &disp->xlnx_crtc.crtc;
+
 	if (!force && (!disp->enabled || zynqmp_disp_layer_is_enabled(disp)))
 		return;
 
@@ -2021,6 +2023,14 @@ static void zynqmp_disp_disable(struct zynqmp_disp *disp, bool force)
 	zynqmp_disp_av_buf_disable_aud(&disp->av_buf);
 	zynqmp_disp_av_buf_disable_buf(&disp->av_buf);
 	zynqmp_disp_av_buf_disable(&disp->av_buf);
+
+	/* TODO: check if this is correct */
+	/* Mark the flip is done as crtc is disabled anyway */
+	if (crtc->state->event) {
+		complete_all(crtc->state->event->base.completion);
+		crtc->state->event = NULL;
+	}
+
 	disp->enabled = false;
 }
 
@@ -2348,6 +2358,9 @@ static void
 zynqmp_disp_plane_atomic_update(struct drm_plane *plane,
 				struct drm_plane_state *old_state)
 {
+	if (!plane->state->crtc || !plane->state->fb)
+		return;
+
 	zynqmp_disp_plane_mode_set(plane, plane->state->fb,
 				   plane->state->crtc_x,
 				   plane->state->crtc_y,
@@ -2363,8 +2376,7 @@ static void
 zynqmp_disp_plane_atomic_disable(struct drm_plane *plane,
 				 struct drm_plane_state *old_state)
 {
-	if (old_state->crtc)
-		zynqmp_disp_plane_disable(plane);
+	zynqmp_disp_plane_disable(plane);
 }
 
 static const struct drm_plane_helper_funcs zynqmp_disp_plane_helper_funcs = {
@@ -2560,6 +2572,7 @@ static void zynqmp_disp_crtc_disable(struct drm_crtc *crtc)
 	struct zynqmp_disp *disp = crtc_to_disp(crtc);
 
 	zynqmp_disp_clk_disable(disp->pclk, &disp->pclk_en);
+	zynqmp_disp_plane_disable(crtc->primary);
 	zynqmp_disp_disable(disp, true);
 	pm_runtime_put_sync(disp->dev);
 }
