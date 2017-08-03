@@ -7,3 +7,9 @@ config DRM_XLNX
 	select DRM_GEM_CMA_HELPER
 	help
 	  Xilinx DRM KMS driver.
+
+config DRM_XLNX_BRIDGE
+	tristate "Xilinx DRM KMS bridge"
+	depends on DRM_XLNX
+	help
+	  Xilinx DRM KMS bridge.
