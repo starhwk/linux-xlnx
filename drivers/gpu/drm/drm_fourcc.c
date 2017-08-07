@@ -123,6 +123,17 @@ void drm_fb_get_bpp_depth(uint32_t format, unsigned int *depth,
 		*depth = 8;
 		*bpp = 8;
 		break;
+	case DRM_FORMAT_XRGB4444:
+	case DRM_FORMAT_XBGR4444:
+	case DRM_FORMAT_RGBX4444:
+	case DRM_FORMAT_BGRX4444:
+	case DRM_FORMAT_ARGB4444:
+	case DRM_FORMAT_ABGR4444:
+	case DRM_FORMAT_RGBA4444:
+	case DRM_FORMAT_BGRA4444:
+		*depth = 12;
+		*bpp = 16;
+		break;
 	case DRM_FORMAT_XRGB1555:
 	case DRM_FORMAT_XBGR1555:
 	case DRM_FORMAT_RGBX5551:
