@@ -595,19 +595,19 @@ void xilinx_drm_plane_restore(struct xilinx_drm_plane_manager *manager)
 		plane->prio = plane->id;
 		plane->zpos = plane->id;
 		if (manager->zpos_prop)
-			drm_object_property_set_value(&plane->base.base,
+			xilinx_drm_plane_set_property(&plane->base,
 						      manager->zpos_prop,
 						      plane->prio);
 
 		plane->alpha = manager->default_alpha;
 		if (manager->alpha_prop)
-			drm_object_property_set_value(&plane->base.base,
+			xilinx_drm_plane_set_property(&plane->base,
 						      manager->alpha_prop,
 						      plane->alpha);
 
 		plane->alpha_enable = true;
 		if (manager->alpha_enable_prop)
-			drm_object_property_set_value(&plane->base.base,
+			xilinx_drm_plane_set_property(&plane->base,
 						      manager->alpha_enable_prop, true);
 	}
 }
