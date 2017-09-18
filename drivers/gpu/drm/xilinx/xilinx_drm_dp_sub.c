@@ -776,6 +776,26 @@ static void
 xilinx_drm_dp_sub_blend_layer_disable(struct xilinx_drm_dp_sub_blend *blend,
 				      struct xilinx_drm_dp_sub_layer *layer)
 {
+	u32 coeff_offset, offsets_offset, i;
+	u16 reset_coeffs[] = { 0x1000, 0x0, 0x0,
+			       0x0, 0x1000, 0x0,
+			       0x0, 0x0, 0x1000 };
+
+	/* Reset coefficients and offsets */
+	if (layer->id == XILINX_DRM_DP_SUB_LAYER_VID) {
+		coeff_offset = XILINX_DP_SUB_V_BLEND_IN1CSC_COEFF0;
+		offsets_offset = XILINX_DP_SUB_V_BLEND_LUMA_IN1CSC_OFFSET;
+	} else {
+		coeff_offset = XILINX_DP_SUB_V_BLEND_IN2CSC_COEFF0;
+		offsets_offset = XILINX_DP_SUB_V_BLEND_LUMA_IN2CSC_OFFSET;
+	}
+
+	for (i = 0; i < XILINX_DP_SUB_V_BLEND_NUM_OFFSET; i++) {
+		xilinx_drm_writel(blend->base, offsets_offset + i * 4, 0);
+		xilinx_drm_writel(blend->base, coeff_offset + i * 4,
+				  reset_coeffs[i]);
+	}
+
 	xilinx_drm_writel(blend->base,
 			  XILINX_DP_SUB_V_BLEND_LAYER_CONTROL + layer->offset,
 			  0);
@@ -1717,8 +1737,8 @@ EXPORT_SYMBOL_GPL(xilinx_drm_dp_sub_layer_get_fmts);
 void xilinx_drm_dp_sub_layer_enable(struct xilinx_drm_dp_sub *dp_sub,
 				    struct xilinx_drm_dp_sub_layer *layer)
 {
-	xilinx_drm_dp_sub_av_buf_enable_vid(&dp_sub->av_buf, layer);
 	xilinx_drm_dp_sub_blend_layer_enable(&dp_sub->blend, layer);
+	xilinx_drm_dp_sub_av_buf_enable_vid(&dp_sub->av_buf, layer);
 	layer->enabled = true;
 }
 EXPORT_SYMBOL_GPL(xilinx_drm_dp_sub_layer_enable);
