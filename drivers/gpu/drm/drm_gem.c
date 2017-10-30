@@ -79,13 +79,11 @@
  * the faked up offset will fit
  */
 
-#if BITS_PER_LONG == 64
-#define DRM_FILE_PAGE_OFFSET_START ((0xFFFFFFFFUL >> PAGE_SHIFT) + 1)
-#define DRM_FILE_PAGE_OFFSET_SIZE ((0xFFFFFFFFUL >> PAGE_SHIFT) * 16)
-#else
-#define DRM_FILE_PAGE_OFFSET_START ((0xFFFFFFFUL >> PAGE_SHIFT) + 1)
-#define DRM_FILE_PAGE_OFFSET_SIZE ((0xFFFFFFFUL >> PAGE_SHIFT) * 16)
-#endif
+static uint drm_user_bits_per_long = BITS_PER_LONG;
+MODULE_PARM_DESC(debug, "Override the bits per long for mmap offset.\n"
+"\tcan be used when the user space has different bits per long value.\n"
+"\tthe default value is from BITS_PER_LONG defined in the kernel");
+module_param_named(user_bits_per_long, drm_user_bits_per_long, uint, 0400);
 
 /**
  * drm_gem_init - Initialize the GEM device fields
@@ -95,6 +93,7 @@ int
 drm_gem_init(struct drm_device *dev)
 {
 	struct drm_vma_offset_manager *vma_offset_manager;
+	unsigned long offset;
 
 	mutex_init(&dev->object_name_lock);
 	idr_init(&dev->object_name_idr);
@@ -105,10 +104,15 @@ drm_gem_init(struct drm_device *dev)
 		return -ENOMEM;
 	}
 
+	if (drm_user_bits_per_long == 64)
+		offset = 0xFFFFFFFFUL;
+	else
+		offset = 0xFFFFFFFUL;
+
 	dev->vma_offset_manager = vma_offset_manager;
 	drm_vma_offset_manager_init(vma_offset_manager,
-				    DRM_FILE_PAGE_OFFSET_START,
-				    DRM_FILE_PAGE_OFFSET_SIZE);
+				    (offset >> PAGE_SHIFT) + 1,
+				    (offset >> PAGE_SHIFT) * 16);
 
 	return 0;
 }
