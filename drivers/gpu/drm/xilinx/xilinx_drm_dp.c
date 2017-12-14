@@ -1684,10 +1684,21 @@ xilinx_drm_dp_detect(struct drm_encoder *encoder,
 {
 	struct xilinx_drm_dp *dp = to_dp(encoder);
 	struct xilinx_drm_dp_link_config *link_config = &dp->link_config;
-	u32 state;
+	u32 state, i;
 	int ret;
 
-	state = xilinx_drm_readl(dp->iomem, XILINX_DP_TX_INTR_SIGNAL_STATE);
+        /*
+         * This is from heuristic. It takes some delay (ex, 100 ~ 500 msec) to
+         * get the HPD signal with some monitors.
+         */
+        for (i = 0; i < 10; i++) {
+                state = xilinx_drm_readl(dp->iomem,
+                                       XILINX_DP_TX_INTR_SIGNAL_STATE);
+                if (state & XILINX_DP_TX_INTR_SIGNAL_STATE_HPD)
+                        break;
+                msleep(100);
+        }
+
 	if (state & XILINX_DP_TX_INTR_SIGNAL_STATE_HPD) {
 		dp->status = connector_status_connected;
 		ret = drm_dp_dpcd_read(&dp->aux, 0x0, dp->dpcd,
