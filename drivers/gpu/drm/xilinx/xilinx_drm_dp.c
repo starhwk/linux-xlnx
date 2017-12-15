@@ -1308,10 +1308,11 @@ static void xilinx_drm_dp_train_loop(struct xilinx_drm_dp *dp)
 
 		ret = xilinx_drm_dp_mode_configure(dp, mode->pclock, bw);
 		if (ret < 0)
-			return;
+			goto err_out;
 		bw = ret;
 	} while (bw >= DP_LINK_BW_1_62);
 
+err_out:
 	DRM_ERROR("failed to train the DP link\n");
 }
 
