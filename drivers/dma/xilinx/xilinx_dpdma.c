@@ -2255,6 +2255,7 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	}
 
 	xilinx_dpdma_enable_intr(xdev);
+	platform_set_drvdata(pdev, xdev);
 
 	xilinx_dpdma_debugfs_init(&pdev->dev);
 
