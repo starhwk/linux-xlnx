@@ -688,10 +688,8 @@ static void xilinx_dpdma_sw_desc_addr_64(struct xilinx_dpdma_sw_desc *sw_desc,
 		u32 *addr_ext = &hw_desc->addr_ext_23;
 		u64 frag_addr;
 
-		frag_addr = dma_addr[i];
-		addr[i] = (u32)frag_addr;
-
-		frag_addr >>= 32;
+		addr[i] = lower_32_bits(dma_addr[i]);
+		frag_addr = upper_32_bits(dma_addr[i]);
 		frag_addr &= XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK;
 		frag_addr <<= XILINX_DPDMA_DESC_ADDR_EXT_ADDR_SHIFT * (i % 2);
 		addr_ext[i / 2] = frag_addr;
@@ -1371,10 +1369,10 @@ static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 	sw_desc = list_first_entry(&chan->pending_desc->descriptors,
 				   struct xilinx_dpdma_sw_desc, node);
 	dpdma_write(chan->reg, XILINX_DPDMA_CH_DESC_START_ADDR,
-		    (u32)sw_desc->phys);
+		    lower_32_bits(sw_desc->phys));
 	if (xdev->ext_addr)
 		dpdma_write(chan->reg, XILINX_DPDMA_CH_DESC_START_ADDRE,
-			    ((u64)sw_desc->phys >> 32) &
+			    upper_32_bits(sw_desc->phys) &
 			    XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK);
 
 	if (chan->first_frame) {
