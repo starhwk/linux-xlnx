@@ -315,6 +315,7 @@ struct xilinx_dpdma_chan {
  * struct xilinx_dpdma_device - DPDMA device
  * @common: generic dma device structure
  * @reg: register base address
+ * @irq: irq
  * @dev: generic device structure
  * @axi_clk: axi clock
  * @chan: DPDMA channels
@@ -324,6 +325,7 @@ struct xilinx_dpdma_chan {
 struct xilinx_dpdma_device {
 	struct dma_device common;
 	void __iomem *reg;
+	int irq;
 	struct device *dev;
 
 	struct clk *axi_clk;
@@ -2164,7 +2166,7 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device_node *node, *child;
 	u32 i;
-	int irq, ret;
+	int ret;
 
 	xdev = devm_kzalloc(&pdev->dev, sizeof(*xdev), GFP_KERNEL);
 	if (!xdev)
@@ -2184,14 +2186,14 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	if (IS_ERR(xdev->reg))
 		return PTR_ERR(xdev->reg);
 
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0) {
+	xdev->irq = platform_get_irq(pdev, 0);
+	if (xdev->irq < 0) {
 		dev_err(xdev->dev, "failed to get platform irq\n");
-		return irq;
+		return xdev->irq;
 	}
 
-	ret = devm_request_irq(xdev->dev, irq, xilinx_dpdma_irq_handler,
-			       IRQF_SHARED, dev_name(xdev->dev), xdev);
+	ret = request_irq(xdev->irq, xilinx_dpdma_irq_handler, IRQF_SHARED,
+			  dev_name(xdev->dev), xdev);
 	if (ret) {
 		dev_err(xdev->dev, "failed to request IRQ\n");
 		return ret;
@@ -2271,6 +2273,7 @@ error:
 	for (i = 0; i < XILINX_DPDMA_NUM_CHAN; i++)
 		if (xdev->chan[i])
 			xilinx_dpdma_chan_remove(xdev->chan[i]);
+	free_irq(xdev->irq, xdev);
 
 	return ret;
 }
@@ -2282,6 +2285,7 @@ static int xilinx_dpdma_remove(struct platform_device *pdev)
 
 	xdev = platform_get_drvdata(pdev);
 
+	free_irq(xdev->irq, xdev);
 	xilinx_dpdma_disable_intr(xdev);
 	of_dma_controller_free(pdev->dev.of_node);
 	dma_async_device_unregister(&xdev->common);
