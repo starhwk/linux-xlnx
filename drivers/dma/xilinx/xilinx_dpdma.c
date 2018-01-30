@@ -21,14 +21,13 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/dmapool.h>
-#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/of_dma.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#include "../dmaengine.h"
+#include "../virt-dma.h"
 
 /* DPDMA registers */
 #define XILINX_DPDMA_ERR_CTRL				0x0
@@ -254,7 +253,7 @@ enum xilinx_dpdma_chan_status {
 
 /**
  * struct xilinx_dpdma_chan - DPDMA channel
- * @common: generic dma channel structure
+ * @vchan: generic virtual dma channel
  * @reg: register base address
  * @id: channel ID
  * @wait_to_stop: queue to wait for outstanding transacitons before stopping
@@ -273,7 +272,7 @@ enum xilinx_dpdma_chan_status {
  * @xdev: DPDMA device
  */
 struct xilinx_dpdma_chan {
-	struct dma_chan common;
+	struct virt_dma_chan vchan;
 	void __iomem *reg;
 	enum xilinx_dpdma_chan_id id;
 
@@ -554,7 +553,7 @@ static void xilinx_dpdma_debugfs_intr_done_count_incr(int chan_id)
 	container_of(tx, struct xilinx_dpdma_tx_desc, async_tx)
 
 #define to_xilinx_chan(chan) \
-	container_of(chan, struct xilinx_dpdma_chan, common)
+	container_of(to_virt_chan(chan), struct xilinx_dpdma_chan, vchan)
 
 /* IO operations */
 
@@ -1715,8 +1714,6 @@ static int xilinx_dpdma_alloc_chan_resources(struct dma_chan *dchan)
 {
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
 
-	dma_cookie_init(dchan);
-
 	chan->desc_pool = dma_pool_create(dev_name(chan->xdev->dev),
 				chan->xdev->dev,
 				sizeof(struct xilinx_dpdma_sw_desc),
@@ -2054,11 +2051,9 @@ xilinx_dpdma_chan_probe(struct device_node *node,
 	tasklet_init(&chan->err_task, xilinx_dpdma_chan_err_task,
 		     (unsigned long)chan);
 
-	chan->common.device = &xdev->common;
 	chan->xdev = xdev;
-
-	list_add_tail(&chan->common.device_node, &xdev->common.channels);
 	xdev->chan[chan->id] = chan;
+	vchan_init(&chan->vchan, &xdev->common);
 
 	return chan;
 }
@@ -2067,7 +2062,7 @@ static void xilinx_dpdma_chan_remove(struct xilinx_dpdma_chan *chan)
 {
 	tasklet_kill(&chan->err_task);
 	tasklet_kill(&chan->done_task);
-	list_del(&chan->common.device_node);
+	list_del(&chan->vchan.chan.device_node);
 }
 
 static struct dma_chan *of_dma_xilinx_xlate(struct of_phandle_args *dma_spec,
@@ -2082,7 +2077,7 @@ static struct dma_chan *of_dma_xilinx_xlate(struct of_phandle_args *dma_spec,
 	if (!xdev->chan[chan_id])
 		return NULL;
 
-	return dma_get_slave_channel(&xdev->chan[chan_id]->common);
+	return dma_get_slave_channel(&xdev->chan[chan_id]->vchan.chan);
 }
 
 static int xilinx_dpdma_probe(struct platform_device *pdev)

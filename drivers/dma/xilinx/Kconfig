@@ -35,6 +35,7 @@ config XILINX_CDMATEST
 config XILINX_DPDMA
 	tristate "Xilinx DPDMA Engine"
 	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
 	help
 	  Enable support for Xilinx DisplayPort DMA.
 
