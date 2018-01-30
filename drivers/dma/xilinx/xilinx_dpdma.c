@@ -813,54 +813,6 @@ xilinx_dpdma_chan_free_tx_desc(struct xilinx_dpdma_chan *chan,
 }
 
 /**
- * xilinx_dpdma_chan_submit_tx_desc - Submit a transaction descriptor
- * @chan: DPDMA channel
- * @tx_desc: tx descriptor
- *
- * Submit the tx descriptor @tx_desc to the channel @chan.
- *
- * Return: a cookie assigned to the tx descriptor
- */
-static dma_cookie_t
-xilinx_dpdma_chan_submit_tx_desc(struct xilinx_dpdma_chan *chan,
-				 struct xilinx_dpdma_tx_desc *tx_desc)
-{
-	struct xilinx_dpdma_sw_desc *sw_desc;
-	dma_cookie_t cookie;
-	unsigned long flags;
-
-	spin_lock_irqsave(&chan->lock, flags);
-
-	if (chan->submitted_desc) {
-		cookie = chan->submitted_desc->async_tx.cookie;
-		goto out_unlock;
-	}
-
-	cookie = dma_cookie_assign(&tx_desc->async_tx);
-
-	/* Assign the cookie to descriptors in this transaction */
-	/* Only 16 bit will be used, but it should be enough */
-	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
-		sw_desc->hw.desc_id = cookie;
-
-	if (tx_desc != chan->allocated_desc)
-		dev_err(chan->xdev->dev, "desc != allocated_desc\n");
-	else
-		chan->allocated_desc = NULL;
-	chan->submitted_desc = tx_desc;
-
-	if (chan->id == VIDEO1 || chan->id == VIDEO2) {
-		chan->video_group = true;
-		chan->xdev->chan[VIDEO0]->video_group = true;
-	}
-
-out_unlock:
-	spin_unlock_irqrestore(&chan->lock, flags);
-
-	return cookie;
-}
-
-/**
  * xilinx_dpdma_chan_free_desc_list - Free a descriptor list
  * @chan: DPDMA channel
  * @list: tx descriptor list
@@ -1623,8 +1575,37 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 {
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(tx->chan);
 	struct xilinx_dpdma_tx_desc *tx_desc = to_dpdma_tx_desc(tx);
+	struct xilinx_dpdma_sw_desc *sw_desc;
+	dma_cookie_t cookie;
+	unsigned long flags;
 
-	return xilinx_dpdma_chan_submit_tx_desc(chan, tx_desc);
+	spin_lock_irqsave(&chan->lock, flags);
+
+	if (chan->submitted_desc) {
+		cookie = chan->submitted_desc->async_tx.cookie;
+		goto out_unlock;
+	}
+
+	cookie = dma_cookie_assign(&tx_desc->async_tx);
+
+	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
+		sw_desc->hw.desc_id = cookie;
+
+	if (tx_desc != chan->allocated_desc)
+		dev_err(chan->xdev->dev, "desc != allocated_desc\n");
+	else
+		chan->allocated_desc = NULL;
+	chan->submitted_desc = tx_desc;
+
+	if (chan->id == VIDEO1 || chan->id == VIDEO2) {
+		chan->video_group = true;
+		chan->xdev->chan[VIDEO0]->video_group = true;
+	}
+
+out_unlock:
+	spin_unlock_irqrestore(&chan->lock, flags);
+
+	return cookie;
 }
 
 /* DMA channel operations */
