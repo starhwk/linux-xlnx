@@ -193,14 +193,14 @@ enum xilinx_dpdma_tx_desc_status {
 
 /**
  * struct xilinx_dpdma_tx_desc - DPDMA transaction descriptor
- * @async_tx: DMA async transaction descriptor
+ * @vdesc: generic virtual dma descriptor
  * @descriptors: list of software descriptors
  * @node: list node for transaction descriptors
  * @status: tx descriptor status
  * @done_cnt: number of complete notification to deliver
  */
 struct xilinx_dpdma_tx_desc {
-	struct dma_async_tx_descriptor async_tx;
+	struct virt_dma_desc vdesc;
 	struct list_head descriptors;
 	struct list_head node;
 	enum xilinx_dpdma_tx_desc_status status;
@@ -549,8 +549,11 @@ static void xilinx_dpdma_debugfs_intr_done_count_incr(int chan_id)
 }
 #endif /* CONFIG_DEBUG_FS */
 
-#define to_dpdma_tx_desc(tx) \
-	container_of(tx, struct xilinx_dpdma_tx_desc, async_tx)
+#define to_vdesc(async_tx) \
+	container_of(async_tx, struct virt_dma_desc, tx)
+
+#define to_dpdma_tx_desc(async_tx) \
+	container_of(to_vdesc(async_tx), struct xilinx_dpdma_tx_desc, vdesc)
 
 #define to_xilinx_chan(chan) \
 	container_of(to_virt_chan(chan), struct xilinx_dpdma_chan, vchan)
@@ -885,8 +888,8 @@ static void xilinx_dpdma_chan_cleanup_desc(struct xilinx_dpdma_chan *chan)
 
 		cnt = desc->done_cnt;
 		desc->done_cnt = 0;
-		callback = desc->async_tx.callback;
-		callback_param = desc->async_tx.callback_param;
+		callback = desc->vdesc.tx.callback;
+		callback_param = desc->vdesc.tx.callback_param;
 		if (callback) {
 			spin_unlock_irqrestore(&chan->lock, flags);
 			for (i = 0; i < cnt; i++)
@@ -900,8 +903,8 @@ static void xilinx_dpdma_chan_cleanup_desc(struct xilinx_dpdma_chan *chan)
 	if (chan->active_desc) {
 		cnt = chan->active_desc->done_cnt;
 		chan->active_desc->done_cnt = 0;
-		callback = chan->active_desc->async_tx.callback;
-		callback_param = chan->active_desc->async_tx.callback_param;
+		callback = chan->active_desc->vdesc.tx.callback;
+		callback_param = chan->active_desc->vdesc.tx.callback_param;
 		if (callback) {
 			spin_unlock_irqrestore(&chan->lock, flags);
 			for (i = 0; i < cnt; i++)
@@ -962,7 +965,7 @@ static void xilinx_dpdma_chan_desc_done_intr(struct xilinx_dpdma_chan *chan)
 
 	chan->active_desc->done_cnt++;
 	if (chan->active_desc->status ==  PREPARED) {
-		dma_cookie_complete(&chan->active_desc->async_tx);
+		dma_cookie_complete(&chan->active_desc->vdesc.tx);
 		chan->active_desc->status = ACTIVE;
 	}
 
@@ -991,7 +994,7 @@ xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 	u32 line_size = 0;
 
 	if (chan->allocated_desc)
-		return &chan->allocated_desc->async_tx;
+		return &chan->allocated_desc->vdesc.tx;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1048,7 +1051,7 @@ xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 
 	chan->allocated_desc = tx_desc;
 
-	return &tx_desc->async_tx;
+	return &tx_desc->vdesc.tx;
 
 error:
 	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
@@ -1079,7 +1082,7 @@ xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 	unsigned int i;
 
 	if (chan->allocated_desc)
-		return &chan->allocated_desc->async_tx;
+		return &chan->allocated_desc->vdesc.tx;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1128,7 +1131,7 @@ xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 
 	chan->allocated_desc = tx_desc;
 
-	return &tx_desc->async_tx;
+	return &tx_desc->vdesc.tx;
 
 error:
 	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
@@ -1163,7 +1166,7 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 	}
 
 	if (chan->allocated_desc)
-		return &chan->allocated_desc->async_tx;
+		return &chan->allocated_desc->vdesc.tx;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1190,7 +1193,7 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 	list_add_tail(&sw_desc->node, &tx_desc->descriptors);
 	chan->allocated_desc = tx_desc;
 
-	return &tx_desc->async_tx;
+	return &tx_desc->vdesc.tx;
 
 error:
 	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
@@ -1582,11 +1585,11 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 	spin_lock_irqsave(&chan->lock, flags);
 
 	if (chan->submitted_desc) {
-		cookie = chan->submitted_desc->async_tx.cookie;
+		cookie = chan->submitted_desc->vdesc.tx.cookie;
 		goto out_unlock;
 	}
 
-	cookie = dma_cookie_assign(&tx_desc->async_tx);
+	cookie = dma_cookie_assign(&tx_desc->vdesc.tx);
 
 	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
 		sw_desc->hw.desc_id = cookie;
