@@ -136,10 +136,17 @@
  * @src_addr: payload source address (lower 32 bit of 1st 4KB page)
  * @addr_ext_23: upper 16 bit of 48 bit address (src_addr2 and src_addr3)
  * @addr_ext_45: upper 16 bit of 48 bit address (src_addr4 and src_addr5)
- * @src_addr2: payload source address (lower 32 bit of 2nd 4KB page)
- * @src_addr3: payload source address (lower 32 bit of 3rd 4KB page)
- * @src_addr4: payload source address (lower 32 bit of 4th 4KB page)
- * @src_addr5: payload source address (lower 32 bit of 5th 4KB page)
+ * @src_addr2: payload source address (lower 32 bit of 2nd 4KB page).
+ *	Each descriptor can point up to 5 - 48bit address payloads.
+ *	src_addrN fields contain the lower 32bit of 48bit address of
+ *	Nth payload. Remaining upper 16bit of Nth payload address is stored
+ *	in the addr_extN fields.
+ * @src_addr3: payload source address (lower 32 bit of 3rd 4KB page) as
+ *	documented in @src_addr2 description.
+ * @src_addr4: payload source address (lower 32 bit of 4th 4KB page) as
+ *	documented in @src_addr2 description.
+ * @src_addr5: payload source address (lower 32 bit of 5th 4KB page) as
+ *	documented in @src_addr2 description.
  * @crc: descriptor CRC
  */
 struct xilinx_dpdma_hw_desc {
