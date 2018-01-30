@@ -264,7 +264,6 @@ enum xilinx_dpdma_chan_status {
  * @desc_pool: descriptor allocation pool
  * @done_task: done IRQ bottom half handler
  * @err_task: error IRQ bottom half handler
- * @submitted_desc: submitted descriptor
  * @pending_desc: pending descriptor to be scheduled in next period
  * @active_desc: descriptor that the DPDMA channel is active on
  * @done_list: done descriptor list
@@ -285,7 +284,6 @@ struct xilinx_dpdma_chan {
 	struct tasklet_struct done_task;
 	struct tasklet_struct err_task;
 
-	struct xilinx_dpdma_tx_desc *submitted_desc;
 	struct xilinx_dpdma_tx_desc *pending_desc;
 	struct xilinx_dpdma_tx_desc *active_desc;
 	struct list_head done_list;
@@ -850,8 +848,6 @@ static void xilinx_dpdma_chan_free_all_desc(struct xilinx_dpdma_chan *chan)
 		chan->status == STREAMING ? "STREAMING" : "IDLE");
 
 	vchan_free_chan_resources(&chan->vchan);
-	xilinx_dpdma_chan_free_tx_desc(chan, chan->submitted_desc);
-	chan->submitted_desc = NULL;
 	xilinx_dpdma_chan_free_tx_desc(chan, chan->pending_desc);
 	chan->pending_desc = NULL;
 	xilinx_dpdma_chan_free_tx_desc(chan, chan->active_desc);
@@ -1271,24 +1267,27 @@ xilinx_dpdma_chan_video_group_ready(struct xilinx_dpdma_chan *chan)
  * xilinx_dpdma_chan_issue_pending - Issue the pending descriptor
  * @chan: DPDMA channel
  *
- * Issue the first pending descriptor from @chan->submitted_desc. If the channel
- * is already streaming, the channel is re-triggered with the pending
- * descriptor.
+ * Issue the first pending descriptor from vchan desc_submitted list. If
+ * the channel is already streaming, the channel is re-triggered with
+ * the pending descriptor.
  */
 static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 {
 	struct xilinx_dpdma_device *xdev = chan->xdev;
 	struct xilinx_dpdma_sw_desc *sw_desc;
+	struct virt_dma_desc *vdesc;
 	unsigned long flags;
 	u32 reg, channels;
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	if (!chan->submitted_desc || chan->pending_desc)
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+					 struct virt_dma_desc, node);
+	if (!vdesc || chan->pending_desc)
 		goto out_unlock;
 
-	chan->pending_desc = chan->submitted_desc;
-	chan->submitted_desc = NULL;
+	chan->pending_desc = to_dpdma_tx_desc(&vdesc->tx);
+	list_del(&vdesc->node);
 
 	sw_desc = list_first_entry(&chan->pending_desc->descriptors,
 				   struct xilinx_dpdma_sw_desc, node);
@@ -1339,11 +1338,14 @@ out_unlock:
  */
 static void xilinx_dpdma_chan_start(struct xilinx_dpdma_chan *chan)
 {
+	struct virt_dma_desc *vdesc;
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	if (!chan->submitted_desc || chan->status == STREAMING)
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+					 struct virt_dma_desc, node);
+	if (!vdesc || chan->status == STREAMING)
 		goto out_unlock;
 
 	dpdma_clr(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
@@ -1533,6 +1535,7 @@ xilinx_dpdma_chan_err(struct xilinx_dpdma_chan *chan, u32 isr, u32 eisr)
 static void xilinx_dpdma_chan_handle_err(struct xilinx_dpdma_chan *chan)
 {
 	struct xilinx_dpdma_device *xdev = chan->xdev;
+	struct virt_dma_desc *vdesc;
 	struct device *dev = xdev->dev;
 	unsigned long flags;
 
@@ -1559,9 +1562,12 @@ static void xilinx_dpdma_chan_handle_err(struct xilinx_dpdma_chan *chan)
 	case ACTIVE:
 	case PREPARED:
 		/* Reschedule if there's no new descriptor */
-		if (!chan->pending_desc && !chan->submitted_desc) {
+		vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+						 struct virt_dma_desc, node);
+		if (!chan->pending_desc && !vdesc) {
 			chan->active_desc->status = ERRORED;
-			chan->submitted_desc = chan->active_desc;
+			list_add(&chan->active_desc->vdesc.node,
+				 &chan->vchan.desc_submitted);
 		} else {
 			xilinx_dpdma_chan_free_tx_desc(chan, chan->active_desc);
 		}
@@ -1586,8 +1592,10 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	if (chan->submitted_desc) {
-		cookie = chan->submitted_desc->vdesc.tx.cookie;
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+					 struct virt_dma_desc, node);
+	if (vdesc) {
+		cookie = vdesc->tx.cookie;
 		goto out_unlock;
 	}
 
@@ -1602,7 +1610,7 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 		dev_err(chan->xdev->dev, "desc != allocated_desc\n");
 	else
 		list_del(&vdesc->node);
-	chan->submitted_desc = tx_desc;
+	list_add(&tx_desc->vdesc.node, &chan->vchan.desc_submitted);
 
 	if (chan->id == VIDEO1 || chan->id == VIDEO2) {
 		chan->video_group = true;
