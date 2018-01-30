@@ -264,7 +264,6 @@ enum xilinx_dpdma_chan_status {
  * @desc_pool: descriptor allocation pool
  * @done_task: done IRQ bottom half handler
  * @err_task: error IRQ bottom half handler
- * @allocated_desc: allocated descriptor
  * @submitted_desc: submitted descriptor
  * @pending_desc: pending descriptor to be scheduled in next period
  * @active_desc: descriptor that the DPDMA channel is active on
@@ -286,7 +285,6 @@ struct xilinx_dpdma_chan {
 	struct tasklet_struct done_task;
 	struct tasklet_struct err_task;
 
-	struct xilinx_dpdma_tx_desc *allocated_desc;
 	struct xilinx_dpdma_tx_desc *submitted_desc;
 	struct xilinx_dpdma_tx_desc *pending_desc;
 	struct xilinx_dpdma_tx_desc *active_desc;
@@ -851,8 +849,7 @@ static void xilinx_dpdma_chan_free_all_desc(struct xilinx_dpdma_chan *chan)
 	dev_dbg(chan->xdev->dev, "chan->status = %s\n",
 		chan->status == STREAMING ? "STREAMING" : "IDLE");
 
-	xilinx_dpdma_chan_free_tx_desc(chan, chan->allocated_desc);
-	chan->allocated_desc = NULL;
+	vchan_free_chan_resources(&chan->vchan);
 	xilinx_dpdma_chan_free_tx_desc(chan, chan->submitted_desc);
 	chan->submitted_desc = NULL;
 	xilinx_dpdma_chan_free_tx_desc(chan, chan->pending_desc);
@@ -982,19 +979,22 @@ out_unlock:
  * Prepare a tx descriptor incudling internal software/hardware descriptors
  * for the given scatter-gather transaction.
  *
- * Return: A dma async tx descriptor on success, or NULL.
+ * Return: A virtual dma descriptor on success, or NULL.
  */
-static struct dma_async_tx_descriptor *
+static struct virt_dma_desc *
 xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 				struct scatterlist *sgl)
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc, *last = NULL;
+	struct virt_dma_desc *vdesc;
 	struct scatterlist *iter = sgl;
 	u32 line_size = 0;
 
-	if (chan->allocated_desc)
-		return &chan->allocated_desc->vdesc.tx;
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
+					 struct virt_dma_desc, node);
+	if (vdesc)
+		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1049,9 +1049,7 @@ xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 	last->hw.control |= XILINX_DPDMA_DESC_CONTROL_COMPLETE_INTR;
 	last->hw.control |= XILINX_DPDMA_DESC_CONTROL_LAST_OF_FRAME;
 
-	chan->allocated_desc = tx_desc;
-
-	return &tx_desc->vdesc.tx;
+	return &tx_desc->vdesc;
 
 error:
 	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
@@ -1069,20 +1067,23 @@ error:
  * Prepare a tx descriptor incudling internal software/hardware descriptors
  * for the given cyclic transaction.
  *
- * Return: A dma async tx descriptor on success, or NULL.
+ * Return: A virtual dma descriptor on success, or NULL.
  */
-static struct dma_async_tx_descriptor *
+static struct virt_dma_desc *
 xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 			      dma_addr_t buf_addr, size_t buf_len,
 			      size_t period_len)
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc, *last = NULL;
+	struct virt_dma_desc *vdesc;
 	unsigned int periods = buf_len / period_len;
 	unsigned int i;
 
-	if (chan->allocated_desc)
-		return &chan->allocated_desc->vdesc.tx;
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
+					 struct virt_dma_desc, node);
+	if (vdesc)
+		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1129,9 +1130,7 @@ xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 		xilinx_dpdma_sw_desc_next_32(last, sw_desc);
 	last->hw.control |= XILINX_DPDMA_DESC_CONTROL_LAST_OF_FRAME;
 
-	chan->allocated_desc = tx_desc;
-
-	return &tx_desc->vdesc.tx;
+	return &tx_desc->vdesc;
 
 error:
 	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
@@ -1147,15 +1146,16 @@ error:
  * Prepare a tx descriptor incudling internal software/hardware descriptors
  * based on @xt.
  *
- * Return: A dma async tx descriptor on success, or NULL.
+ * Return: A virtual dma descriptor on success, or NULL.
  */
-static struct dma_async_tx_descriptor *
+static struct virt_dma_desc *
 xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 				   struct dma_interleaved_template *xt)
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc;
 	struct xilinx_dpdma_hw_desc *hw_desc;
+	struct virt_dma_desc *vdesc;
 	size_t hsize = xt->sgl[0].size;
 	size_t stride = hsize + xt->sgl[0].icg;
 
@@ -1165,8 +1165,10 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 		return NULL;
 	}
 
-	if (chan->allocated_desc)
-		return &chan->allocated_desc->vdesc.tx;
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
+					 struct virt_dma_desc, node);
+	if (vdesc)
+		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1191,9 +1193,8 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 	hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_LAST_OF_FRAME;
 
 	list_add_tail(&sw_desc->node, &tx_desc->descriptors);
-	chan->allocated_desc = tx_desc;
 
-	return &tx_desc->vdesc.tx;
+	return &tx_desc->vdesc;
 
 error:
 	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
@@ -1579,6 +1580,7 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(tx->chan);
 	struct xilinx_dpdma_tx_desc *tx_desc = to_dpdma_tx_desc(tx);
 	struct xilinx_dpdma_sw_desc *sw_desc;
+	struct virt_dma_desc *vdesc;
 	dma_cookie_t cookie;
 	unsigned long flags;
 
@@ -1594,10 +1596,12 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
 		sw_desc->hw.desc_id = cookie;
 
-	if (tx_desc != chan->allocated_desc)
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
+					 struct virt_dma_desc, node);
+	if (&tx_desc->vdesc != vdesc)
 		dev_err(chan->xdev->dev, "desc != allocated_desc\n");
 	else
-		chan->allocated_desc = NULL;
+		list_del(&vdesc->node);
 	chan->submitted_desc = tx_desc;
 
 	if (chan->id == VIDEO1 || chan->id == VIDEO2) {
@@ -1620,6 +1624,7 @@ xilinx_dpdma_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 			   unsigned long flags, void *context)
 {
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+	struct virt_dma_desc *vdesc;
 	struct dma_async_tx_descriptor *async_tx;
 
 	if (direction != DMA_MEM_TO_DEV)
@@ -1628,15 +1633,13 @@ xilinx_dpdma_prep_slave_sg(struct dma_chan *dchan, struct scatterlist *sgl,
 	if (!sgl || sg_len < 2)
 		return NULL;
 
-	async_tx = xilinx_dpdma_chan_prep_slave_sg(chan, sgl);
-	if (!async_tx)
+	vdesc = xilinx_dpdma_chan_prep_slave_sg(chan, sgl);
+	if (!vdesc)
 		return NULL;
 
-	dma_async_tx_descriptor_init(async_tx, dchan);
+	async_tx = vchan_tx_prep(&chan->vchan, vdesc, flags);
 	async_tx->tx_submit = xilinx_dpdma_tx_submit;
-	async_tx->flags = flags;
 	async_tx_ack(async_tx);
-
 	return async_tx;
 }
 
@@ -1647,6 +1650,7 @@ xilinx_dpdma_prep_dma_cyclic(struct dma_chan *dchan, dma_addr_t buf_addr,
 			     unsigned long flags)
 {
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+	struct virt_dma_desc *vdesc;
 	struct dma_async_tx_descriptor *async_tx;
 
 	if (direction != DMA_MEM_TO_DEV)
@@ -1655,16 +1659,14 @@ xilinx_dpdma_prep_dma_cyclic(struct dma_chan *dchan, dma_addr_t buf_addr,
 	if (buf_len % period_len)
 		return NULL;
 
-	async_tx = xilinx_dpdma_chan_prep_cyclic(chan, buf_addr, buf_len,
-						 period_len);
-	if (!async_tx)
+	vdesc = xilinx_dpdma_chan_prep_cyclic(chan, buf_addr, buf_len,
+					      period_len);
+	if (!vdesc)
 		return NULL;
 
-	dma_async_tx_descriptor_init(async_tx, dchan);
+	async_tx = vchan_tx_prep(&chan->vchan, vdesc, flags);
 	async_tx->tx_submit = xilinx_dpdma_tx_submit;
-	async_tx->flags = flags;
 	async_tx_ack(async_tx);
-
 	return async_tx;
 }
 
@@ -1674,6 +1676,7 @@ xilinx_dpdma_prep_interleaved_dma(struct dma_chan *dchan,
 				  unsigned long flags)
 {
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+	struct virt_dma_desc *vdesc;
 	struct dma_async_tx_descriptor *async_tx;
 
 	if (xt->dir != DMA_MEM_TO_DEV)
@@ -1682,15 +1685,13 @@ xilinx_dpdma_prep_interleaved_dma(struct dma_chan *dchan,
 	if (!xt->numf || !xt->sgl[0].size)
 		return NULL;
 
-	async_tx = xilinx_dpdma_chan_prep_interleaved(chan, xt);
-	if (!async_tx)
+	vdesc = xilinx_dpdma_chan_prep_interleaved(chan, xt);
+	if (!vdesc)
 		return NULL;
 
-	dma_async_tx_descriptor_init(async_tx, dchan);
+	async_tx = vchan_tx_prep(&chan->vchan, vdesc, flags);
 	async_tx->tx_submit = xilinx_dpdma_tx_submit;
-	async_tx->flags = flags;
 	async_tx_ack(async_tx);
-
 	return async_tx;
 }
 
