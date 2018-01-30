@@ -1294,28 +1294,6 @@ static inline void xilinx_dpdma_chan_disable(struct xilinx_dpdma_chan *chan)
 	dpdma_clr(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_ENABLE);
 }
 
-/**
- * xilinx_dpdma_chan_pause - Pause the channel
- * @chan: DPDMA channel
- *
- * Pause the channel.
- */
-static inline void xilinx_dpdma_chan_pause(struct xilinx_dpdma_chan *chan)
-{
-	dpdma_set(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
-}
-
-/**
- * xilinx_dpdma_chan_unpause - Unpause the channel
- * @chan: DPDMA channel
- *
- * Unpause the channel.
- */
-static inline void xilinx_dpdma_chan_unpause(struct xilinx_dpdma_chan *chan)
-{
-	dpdma_clr(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
-}
-
 static u32
 xilinx_dpdma_chan_video_group_ready(struct xilinx_dpdma_chan *chan)
 {
@@ -1413,7 +1391,7 @@ static void xilinx_dpdma_chan_start(struct xilinx_dpdma_chan *chan)
 	if (!chan->submitted_desc || chan->status == STREAMING)
 		goto out_unlock;
 
-	xilinx_dpdma_chan_unpause(chan);
+	dpdma_clr(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
 	xilinx_dpdma_chan_enable(chan);
 	chan->first_frame = true;
 	chan->status = STREAMING;
@@ -1550,7 +1528,7 @@ static int xilinx_dpdma_chan_stop(struct xilinx_dpdma_chan *chan, bool poll)
 	unsigned long flags;
 	bool ret;
 
-	xilinx_dpdma_chan_pause(chan);
+	dpdma_set(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
 	if (poll)
 		ret = xilinx_dpdma_chan_poll_no_ostand(chan);
 	else
@@ -1562,113 +1540,6 @@ static int xilinx_dpdma_chan_stop(struct xilinx_dpdma_chan *chan, bool poll)
 	xilinx_dpdma_chan_disable(chan);
 	chan->status = IDLE;
 	spin_unlock_irqrestore(&chan->lock, flags);
-
-	return 0;
-}
-
-/**
- * xilinx_dpdma_chan_alloc_resources - Allocate resources for the channel
- * @chan: DPDMA channel
- *
- * Allocate a descriptor pool for the channel.
- *
- * Return: 0 on success, or -ENOMEM if failed to allocate a pool.
- */
-static int xilinx_dpdma_chan_alloc_resources(struct xilinx_dpdma_chan *chan)
-{
-	chan->desc_pool = dma_pool_create(dev_name(chan->xdev->dev),
-				chan->xdev->dev,
-				sizeof(struct xilinx_dpdma_sw_desc),
-				__alignof__(struct xilinx_dpdma_sw_desc), 0);
-	if (!chan->desc_pool) {
-		dev_err(chan->xdev->dev,
-			"failed to allocate a descriptor pool\n");
-		return -ENOMEM;
-	}
-
-	return 0;
-}
-
-/**
- * xilinx_dpdma_chan_free_resources - Free all resources for the channel
- * @chan: DPDMA channel
- *
- * Free all descriptors and the descriptor pool for the channel.
- */
-static void xilinx_dpdma_chan_free_resources(struct xilinx_dpdma_chan *chan)
-{
-	xilinx_dpdma_chan_free_all_desc(chan);
-	dma_pool_destroy(chan->desc_pool);
-	chan->desc_pool = NULL;
-}
-
-/**
- * xilinx_dpdma_chan_terminate_all - Terminate the channel and descriptors
- * @chan: DPDMA channel
- *
- * Stop the channel and free all associated descriptors. Poll the no outstanding
- * transaction interrupt as this can be called from an atomic context.
- *
- * Return: 0 on success, or the error code from xilinx_dpdma_chan_stop().
- */
-static int xilinx_dpdma_chan_terminate_all(struct xilinx_dpdma_chan *chan)
-{
-	struct xilinx_dpdma_device *xdev = chan->xdev;
-	int ret;
-	unsigned int i;
-
-	if (chan->video_group) {
-		for (i = VIDEO0; i < GRAPHICS; i++) {
-			if (xdev->chan[i]->video_group &&
-			    xdev->chan[i]->status == STREAMING) {
-				xilinx_dpdma_chan_pause(xdev->chan[i]);
-				xdev->chan[i]->video_group = false;
-			}
-		}
-	}
-
-	ret = xilinx_dpdma_chan_stop(chan, true);
-	if (ret)
-		return ret;
-
-	xilinx_dpdma_chan_free_all_desc(chan);
-
-	return 0;
-}
-
-/**
- * xilinx_dpdma_chan_synchronize - Synchronize all outgoing transfer
- * @chan: DPDMA channel
- *
- * Stop the channel and free all associated descriptors. As this can't be
- * called in an atomic context, sleep-wait for no outstanding transaction
- * interrupt. Then kill all related tasklets.
- *
- * Return: 0 on success, or the error code from xilinx_dpdma_chan_stop().
- */
-static int xilinx_dpdma_chan_synchronize(struct xilinx_dpdma_chan *chan)
-{
-	struct xilinx_dpdma_device *xdev = chan->xdev;
-	int ret;
-	unsigned int i;
-
-	if (chan->video_group) {
-		for (i = VIDEO0; i < GRAPHICS; i++) {
-			if (xdev->chan[i]->video_group &&
-			    xdev->chan[i]->status == STREAMING) {
-				xilinx_dpdma_chan_pause(xdev->chan[i]);
-				xdev->chan[i]->video_group = false;
-			}
-		}
-	}
-
-	ret = xilinx_dpdma_chan_stop(chan, false);
-	if (ret)
-		return ret;
-
-	tasklet_kill(&chan->err_task);
-	tasklet_kill(&chan->done_task);
-	xilinx_dpdma_chan_free_all_desc(chan);
 
 	return 0;
 }
@@ -1846,21 +1717,26 @@ static int xilinx_dpdma_alloc_chan_resources(struct dma_chan *dchan)
 
 	dma_cookie_init(dchan);
 
-	return xilinx_dpdma_chan_alloc_resources(chan);
+	chan->desc_pool = dma_pool_create(dev_name(chan->xdev->dev),
+				chan->xdev->dev,
+				sizeof(struct xilinx_dpdma_sw_desc),
+				__alignof__(struct xilinx_dpdma_sw_desc), 0);
+	if (!chan->desc_pool) {
+		dev_err(chan->xdev->dev,
+			"failed to allocate a descriptor pool\n");
+		return -ENOMEM;
+	}
+
+	return 0;
 }
 
 static void xilinx_dpdma_free_chan_resources(struct dma_chan *dchan)
 {
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
 
-	xilinx_dpdma_chan_free_resources(chan);
-}
-
-static enum dma_status xilinx_dpdma_tx_status(struct dma_chan *dchan,
-					      dma_cookie_t cookie,
-					      struct dma_tx_state *txstate)
-{
-	return dma_cookie_status(dchan, cookie, txstate);
+	xilinx_dpdma_chan_free_all_desc(chan);
+	dma_pool_destroy(chan->desc_pool);
+	chan->desc_pool = NULL;
 }
 
 static void xilinx_dpdma_issue_pending(struct dma_chan *dchan)
@@ -1882,26 +1758,88 @@ static int xilinx_dpdma_config(struct dma_chan *dchan,
 
 static int xilinx_dpdma_pause(struct dma_chan *dchan)
 {
-	xilinx_dpdma_chan_pause(to_xilinx_chan(dchan));
+	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+
+	dpdma_set(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
 
 	return 0;
 }
 
 static int xilinx_dpdma_resume(struct dma_chan *dchan)
 {
-	xilinx_dpdma_chan_unpause(to_xilinx_chan(dchan));
+	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+
+	dpdma_clr(chan->reg, XILINX_DPDMA_CH_CNTL, XILINX_DPDMA_CH_CNTL_PAUSE);
 
 	return 0;
 }
 
 static int xilinx_dpdma_terminate_all(struct dma_chan *dchan)
 {
-	return xilinx_dpdma_chan_terminate_all(to_xilinx_chan(dchan));
+	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+	struct xilinx_dpdma_device *xdev = chan->xdev;
+	int ret;
+	unsigned int i;
+
+	if (chan->video_group) {
+		for (i = VIDEO0; i < GRAPHICS; i++) {
+			struct xilinx_dpdma_chan *other = xdev->chan[i];
+
+			if (other->video_group &&
+			    other->status == STREAMING) {
+				dpdma_set(other->reg, XILINX_DPDMA_CH_CNTL,
+					  XILINX_DPDMA_CH_CNTL_PAUSE);
+				other->video_group = false;
+			}
+		}
+	}
+
+	ret = xilinx_dpdma_chan_stop(chan, true);
+	if (ret)
+		return ret;
+
+	xilinx_dpdma_chan_free_all_desc(chan);
+
+	return 0;
 }
 
+/**
+ * xilinx_dpdma_synchronize - Synchronize all outgoing transfer
+ * @chan: DMA channel
+ *
+ * Stop the channel and free all associated descriptors. As this can't be
+ * called in an atomic context, sleep-wait for no outstanding transaction
+ * interrupt. Then kill all related tasklets.
+ */
 static void xilinx_dpdma_synchronize(struct dma_chan *dchan)
 {
-	xilinx_dpdma_chan_synchronize(to_xilinx_chan(dchan));
+	struct xilinx_dpdma_chan *chan = to_xilinx_chan(dchan);
+	struct xilinx_dpdma_device *xdev = chan->xdev;
+	int ret;
+	unsigned int i;
+
+	if (chan->video_group) {
+		for (i = VIDEO0; i < GRAPHICS; i++) {
+			struct xilinx_dpdma_chan *other = xdev->chan[i];
+
+			if (other->video_group &&
+			    other->status == STREAMING) {
+				dpdma_set(other->reg, XILINX_DPDMA_CH_CNTL,
+					  XILINX_DPDMA_CH_CNTL_PAUSE);
+				other->video_group = false;
+			}
+		}
+	}
+
+	ret = xilinx_dpdma_chan_stop(chan, false);
+	if (ret) {
+		dev_err(xdev->dev, "failed to stop the channel\n");
+		return;
+	}
+
+	tasklet_kill(&chan->err_task);
+	tasklet_kill(&chan->done_task);
+	xilinx_dpdma_chan_free_all_desc(chan);
 }
 
 /* Xilinx DPDMA device operations */
@@ -2200,7 +2138,7 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	ddev->device_prep_slave_sg = xilinx_dpdma_prep_slave_sg;
 	ddev->device_prep_dma_cyclic = xilinx_dpdma_prep_dma_cyclic;
 	ddev->device_prep_interleaved_dma = xilinx_dpdma_prep_interleaved_dma;
-	ddev->device_tx_status = xilinx_dpdma_tx_status;
+	ddev->device_tx_status = dma_cookie_status;
 	ddev->device_issue_pending = xilinx_dpdma_issue_pending;
 	ddev->device_config = xilinx_dpdma_config;
 	ddev->device_pause = xilinx_dpdma_pause;
