@@ -16,6 +16,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/bitfield.h>
 #include <linux/clk.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -36,13 +37,9 @@
 #define XILINX_DPDMA_IEN				0xc
 #define XILINX_DPDMA_IDS				0x10
 #define XILINX_DPDMA_INTR_DESC_DONE_MASK		GENMASK(5, 0)
-#define XILINX_DPDMA_INTR_DESC_DONE_SHIFT		0
 #define XILINX_DPDMA_INTR_NO_OSTAND_MASK		GENMASK(11, 6)
-#define XILINX_DPDMA_INTR_NO_OSTAND_SHIFT		6
 #define XILINX_DPDMA_INTR_AXI_ERR_MASK			GENMASK(17, 12)
-#define XILINX_DPDMA_INTR_AXI_ERR_SHIFT			12
 #define XILINX_DPDMA_INTR_DESC_ERR_MASK			GENMASK(23, 18)
-#define XILINX_DPDMA_INTR_DESC_ERR_SHIFT		18
 #define XILINX_DPDMA_INTR_WR_CMD_FIFO_FULL		BIT(24)
 #define XILINX_DPDMA_INTR_WR_DATA_FIFO_FULL		BIT(25)
 #define XILINX_DPDMA_INTR_AXI_4K_CROSS			BIT(26)
@@ -60,15 +57,10 @@
 #define XILINX_DPDMA_EIDS				0x20
 #define XILINX_DPDMA_EINTR_INV_APB			BIT(0)
 #define XILINX_DPDMA_EINTR_RD_AXI_ERR_MASK		GENMASK(6, 1)
-#define XILINX_DPDMA_EINTR_RD_AXI_ERR_SHIFT		1
 #define XILINX_DPDMA_EINTR_PRE_ERR_MASK			GENMASK(12, 7)
-#define XILINX_DPDMA_EINTR_PRE_ERR_SHIFT		7
 #define XILINX_DPDMA_EINTR_CRC_ERR_MASK			GENMASK(18, 13)
-#define XILINX_DPDMA_EINTR_CRC_ERR_SHIFT		13
 #define XILINX_DPDMA_EINTR_WR_AXI_ERR_MASK		GENMASK(24, 19)
-#define XILINX_DPDMA_EINTR_WR_AXI_ERR_SHIFT		19
 #define XILINX_DPDMA_EINTR_DESC_DONE_ERR_MASK		GENMASK(30, 25)
-#define XILINX_DPDMA_EINTR_DESC_DONE_ERR_SHIFT		25
 #define XILINX_DPDMA_EINTR_RD_CMD_FIFO_FULL		BIT(32)
 #define XILINX_DPDMA_EINTR_CHAN_ERR_MASK		0x2082082
 #define XILINX_DPDMA_EINTR_CHAN_ERR			0x7ffffffe
@@ -76,8 +68,8 @@
 #define XILINX_DPDMA_EINTR_ALL				0xffffffff
 #define XILINX_DPDMA_CNTL				0x100
 #define XILINX_DPDMA_GBL				0x104
-#define XILINX_DPDMA_GBL_TRIG_SHIFT			0
-#define XILINX_DPDMA_GBL_RETRIG_SHIFT			6
+#define XILINX_DPDMA_GBL_TRIG_MASK			GENMASK(5, 0)
+#define XILINX_DPDMA_GBL_RETRIG_MASK			GENMASK(11, 6)
 #define XILINX_DPDMA_ALC0_CNTL				0x108
 #define XILINX_DPDMA_ALC0_STATUS			0x10c
 #define XILINX_DPDMA_ALC0_MAX				0x110
@@ -103,13 +95,12 @@
 #define XILINX_DPDMA_CH_CNTL				0x18
 #define XILINX_DPDMA_CH_CNTL_ENABLE			BIT(0)
 #define XILINX_DPDMA_CH_CNTL_PAUSE			BIT(1)
-#define XILINX_DPDMA_CH_CNTL_QOS_DSCR_WR_SHIFT		2
-#define XILINX_DPDMA_CH_CNTL_QOS_DSCR_RD_SHIFT		6
-#define XILINX_DPDMA_CH_CNTL_QOS_DATA_RD_SHIFT		10
+#define XILINX_DPDMA_CH_CNTL_QOS_DSCR_WR_MASK		GENMASK(5, 2)
+#define XILINX_DPDMA_CH_CNTL_QOS_DSCR_RD_MASK		GENMASK(9, 6)
+#define XILINX_DPDMA_CH_CNTL_QOS_DATA_RD_MASK		GENMASK(13, 10)
 #define XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS		11
 #define XILINX_DPDMA_CH_STATUS				0x1c
 #define XILINX_DPDMA_CH_STATUS_OTRAN_CNT_MASK		GENMASK(24, 21)
-#define XILINX_DPDMA_CH_STATUS_OTRAN_CNT_SHIFT		21
 #define XILINX_DPDMA_CH_VDO				0x20
 #define XILINX_DPDMA_CH_PYLD_SZ				0x24
 #define XILINX_DPDMA_CH_DESC_ID				0x28
@@ -124,13 +115,10 @@
 #define XILINX_DPDMA_DESC_CONTROL_ENABLE_CRC		BIT(20)
 #define XILINX_DPDMA_DESC_CONTROL_LAST_OF_FRAME		BIT(21)
 #define XILINX_DPDMA_DESC_ID_MASK			GENMASK(15, 0)
-#define XILINX_DPDMA_DESC_ID_SHIFT			0
 #define XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_MASK	GENMASK(17, 0)
-#define XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_SHIFT	0
 #define XILINX_DPDMA_DESC_HSIZE_STRIDE_STRIDE_MASK	GENMASK(31, 18)
-#define XILINX_DPDMA_DESC_HSIZE_STRIDE_STRIDE_SHIFT	18
-#define XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK		GENMASK(11, 0)
-#define XILINX_DPDMA_DESC_ADDR_EXT_ADDR_SHIFT		16
+#define XILINX_DPDMA_DESC_ADDR_EXT_LSB_MASK		GENMASK(15, 0)
+#define XILINX_DPDMA_DESC_ADDR_EXT_MSB_MASK		GENMASK(31, 16)
 
 #define XILINX_DPDMA_ALIGN_BYTES			256
 #define XILINX_DPDMA_NUM_CHAN				6
@@ -644,8 +632,8 @@ xilinx_dpdma_sw_desc_next_64(struct xilinx_dpdma_sw_desc *sw_desc,
 			     struct xilinx_dpdma_sw_desc *next)
 {
 	sw_desc->hw.next_desc = lower_32_bits(next->phys);
-	sw_desc->hw.addr_ext |= upper_32_bits(next->phys) &
-				XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK;
+	sw_desc->hw.addr_ext |= FIELD_PREP(XILINX_DPDMA_DESC_ADDR_EXT_LSB_MASK,
+					   upper_32_bits(next->phys));
 }
 
 /**
@@ -664,13 +652,10 @@ static void xilinx_dpdma_sw_desc_addr_64(struct xilinx_dpdma_sw_desc *sw_desc,
 {
 	struct xilinx_dpdma_hw_desc *hw_desc = &sw_desc->hw;
 	unsigned int i;
-	u32 src_addr_extn;
 
 	hw_desc->src_addr = lower_32_bits(dma_addr[0]);
-	src_addr_extn = upper_32_bits(dma_addr[0]) &
-			XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK;
-	hw_desc->addr_ext |= (src_addr_extn <<
-			      XILINX_DPDMA_DESC_ADDR_EXT_ADDR_SHIFT);
+	hw_desc->addr_ext |= FIELD_PREP(XILINX_DPDMA_DESC_ADDR_EXT_MSB_MASK,
+					upper_32_bits(dma_addr[0]));
 
 	if (prev)
 		xilinx_dpdma_sw_desc_next_64(prev, sw_desc);
@@ -678,13 +663,17 @@ static void xilinx_dpdma_sw_desc_addr_64(struct xilinx_dpdma_sw_desc *sw_desc,
 	for (i = 1; i < num_src_addr; i++) {
 		u32 *addr = &hw_desc->src_addr2;
 		u32 *addr_ext = &hw_desc->addr_ext_23;
-		u64 frag_addr;
 
 		addr[i] = lower_32_bits(dma_addr[i]);
-		frag_addr = upper_32_bits(dma_addr[i]);
-		frag_addr &= XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK;
-		frag_addr <<= XILINX_DPDMA_DESC_ADDR_EXT_ADDR_SHIFT * (i % 2);
-		addr_ext[i / 2] = frag_addr;
+		if (i % 2) {
+			addr_ext[i / 2] |=
+				FIELD_PREP(XILINX_DPDMA_DESC_ADDR_EXT_MSB_MASK,
+					   upper_32_bits(dma_addr[i]));
+		} else {
+			addr_ext[i / 2] |=
+				FIELD_PREP(XILINX_DPDMA_DESC_ADDR_EXT_LSB_MASK,
+					   upper_32_bits(dma_addr[i]));
+		}
 	}
 }
 
@@ -1077,7 +1066,8 @@ xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 		hw_desc = &sw_desc->hw;
 		hw_desc->xfer_size = line_size;
 		hw_desc->hsize_stride =
-			line_size << XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_SHIFT;
+			FIELD_PREP(XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_MASK,
+				   line_size);
 		hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_PREEMBLE;
 		hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_FRAG_MODE;
 		hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_IGNORE_DONE;
@@ -1155,11 +1145,11 @@ xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 		hw_desc = &sw_desc->hw;
 		hw_desc->xfer_size = period_len;
 		hw_desc->hsize_stride =
-			period_len <<
-			XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_SHIFT;
+			FIELD_PREP(XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_MASK,
+				   period_len);
 		hw_desc->hsize_stride |=
-			period_len <<
-			XILINX_DPDMA_DESC_HSIZE_STRIDE_STRIDE_SHIFT;
+			FIELD_PREP(XILINX_DPDMA_DESC_HSIZE_STRIDE_STRIDE_MASK,
+				   period_len);
 		hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_PREEMBLE;
 		hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_IGNORE_DONE;
 		hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_COMPLETE_INTR;
@@ -1228,10 +1218,12 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 	chan->xdev->desc_addr(sw_desc, sw_desc, &xt->src_start, 1);
 	hw_desc = &sw_desc->hw;
 	hw_desc->xfer_size = hsize * xt->numf;
-	hw_desc->hsize_stride = hsize <<
-				XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_SHIFT;
-	hw_desc->hsize_stride |= (stride / 16) <<
-				 XILINX_DPDMA_DESC_HSIZE_STRIDE_STRIDE_SHIFT;
+	hw_desc->hsize_stride =
+		FIELD_PREP(XILINX_DPDMA_DESC_HSIZE_STRIDE_HSIZE_MASK,
+			   hsize);
+	hw_desc->hsize_stride |=
+		FIELD_PREP(XILINX_DPDMA_DESC_HSIZE_STRIDE_STRIDE_MASK,
+			   stride / 16);
 	hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_PREEMBLE;
 	hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_COMPLETE_INTR;
 	hw_desc->control |= XILINX_DPDMA_DESC_CONTROL_IGNORE_DONE;
@@ -1268,12 +1260,12 @@ static inline void xilinx_dpdma_chan_enable(struct xilinx_dpdma_chan *chan)
 	dpdma_write(chan->xdev->reg, XILINX_DPDMA_EIEN, reg);
 
 	reg = XILINX_DPDMA_CH_CNTL_ENABLE;
-	reg |= XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS <<
-	       XILINX_DPDMA_CH_CNTL_QOS_DSCR_WR_SHIFT;
-	reg |= XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS <<
-	       XILINX_DPDMA_CH_CNTL_QOS_DSCR_RD_SHIFT;
-	reg |= XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS <<
-	       XILINX_DPDMA_CH_CNTL_QOS_DATA_RD_SHIFT;
+	reg |= FIELD_PREP(XILINX_DPDMA_CH_CNTL_QOS_DSCR_WR_MASK,
+			  XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS);
+	reg |= FIELD_PREP(XILINX_DPDMA_CH_CNTL_QOS_DSCR_RD_MASK,
+			  XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS);
+	reg |= FIELD_PREP(XILINX_DPDMA_CH_CNTL_QOS_DATA_RD_MASK,
+			  XILINX_DPDMA_CH_CNTL_QOS_VID_CLASS);
 	dpdma_set(chan->reg, XILINX_DPDMA_CH_CNTL, reg);
 }
 
@@ -1365,7 +1357,7 @@ static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 	if (xdev->ext_addr)
 		dpdma_write(chan->reg, XILINX_DPDMA_CH_DESC_START_ADDRE,
 			    upper_32_bits(sw_desc->phys) &
-			    XILINX_DPDMA_DESC_ADDR_EXT_ADDR_MASK);
+			    XILINX_DPDMA_DESC_ADDR_EXT_LSB_MASK);
 
 	if (chan->first_frame) {
 		chan->first_frame = false;
@@ -1373,18 +1365,21 @@ static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 			channels = xilinx_dpdma_chan_video_group_ready(chan);
 			if (!channels)
 				goto out_unlock;
-			reg = channels << XILINX_DPDMA_GBL_TRIG_SHIFT;
+			reg = FIELD_PREP(XILINX_DPDMA_GBL_TRIG_MASK, channels);
 		} else {
-			reg = 1 << (XILINX_DPDMA_GBL_TRIG_SHIFT + chan->id);
+			reg = BIT(chan->id);
+			reg = FIELD_PREP(XILINX_DPDMA_GBL_TRIG_MASK, reg);
 		}
 	} else {
 		if (chan->video_group) {
 			channels = xilinx_dpdma_chan_video_group_ready(chan);
 			if (!channels)
 				goto out_unlock;
-			reg = channels << XILINX_DPDMA_GBL_RETRIG_SHIFT;
+			reg = FIELD_PREP(XILINX_DPDMA_GBL_RETRIG_MASK,
+					 channels);
 		} else {
-			reg = 1 << (XILINX_DPDMA_GBL_RETRIG_SHIFT + chan->id);
+			reg = BIT(chan->id);
+			reg = FIELD_PREP(XILINX_DPDMA_GBL_RETRIG_MASK, reg);
 		}
 	}
 
@@ -1430,9 +1425,8 @@ out_unlock:
  */
 static inline u32 xilinx_dpdma_chan_ostand(struct xilinx_dpdma_chan *chan)
 {
-	return dpdma_read(chan->reg, XILINX_DPDMA_CH_STATUS) >>
-	       XILINX_DPDMA_CH_STATUS_OTRAN_CNT_SHIFT &
-	       XILINX_DPDMA_CH_STATUS_OTRAN_CNT_MASK;
+	return FIELD_GET(XILINX_DPDMA_CH_STATUS_OTRAN_CNT_MASK,
+			 dpdma_read(chan->reg, XILINX_DPDMA_CH_STATUS));
 }
 
 /**
@@ -1461,7 +1455,7 @@ static int xilinx_dpdma_chan_notify_no_ostand(struct xilinx_dpdma_chan *chan)
 
 	/* Disable 'no outstanding' interrupt */
 	dpdma_write(chan->xdev->reg, XILINX_DPDMA_IDS,
-		    1 << (XILINX_DPDMA_INTR_NO_OSTAND_SHIFT + chan->id));
+		    BIT(ffs(XILINX_DPDMA_INTR_NO_OSTAND_MASK) - 1 + chan->id));
 	wake_up(&chan->wait_to_stop);
 
 	return 0;
@@ -1487,8 +1481,8 @@ static int xilinx_dpdma_chan_wait_no_ostand(struct xilinx_dpdma_chan *chan)
 					       msecs_to_jiffies(50));
 	if (ret > 0) {
 		dpdma_write(chan->xdev->reg, XILINX_DPDMA_IEN,
-			    1 <<
-			    (XILINX_DPDMA_INTR_NO_OSTAND_SHIFT + chan->id));
+			    BIT(ffs(XILINX_DPDMA_INTR_NO_OSTAND_MASK) - 1 +
+				chan->id));
 		return 0;
 	}
 
@@ -1523,8 +1517,8 @@ static int xilinx_dpdma_chan_poll_no_ostand(struct xilinx_dpdma_chan *chan)
 
 	if (loop) {
 		dpdma_write(chan->xdev->reg, XILINX_DPDMA_IEN,
-			    1 <<
-			    (XILINX_DPDMA_INTR_NO_OSTAND_SHIFT + chan->id));
+			    BIT(ffs(XILINX_DPDMA_INTR_NO_OSTAND_MASK) - 1 +
+				chan->id));
 		return 0;
 	}
 
@@ -2056,14 +2050,12 @@ static irqreturn_t xilinx_dpdma_irq_handler(int irq, void *data)
 	if (status & XILINX_DPDMA_INTR_VSYNC)
 		xilinx_dpdma_handle_vsync_intr(xdev);
 
-	masked = (status & XILINX_DPDMA_INTR_DESC_DONE_MASK) >>
-		 XILINX_DPDMA_INTR_DESC_DONE_SHIFT;
+	masked = FIELD_GET(XILINX_DPDMA_INTR_DESC_DONE_MASK, status);
 	if (masked)
 		for_each_set_bit(i, &masked, XILINX_DPDMA_NUM_CHAN)
 			xilinx_dpdma_chan_desc_done_intr(xdev->chan[i]);
 
-	masked = (status & XILINX_DPDMA_INTR_NO_OSTAND_MASK) >>
-		 XILINX_DPDMA_INTR_NO_OSTAND_SHIFT;
+	masked = FIELD_GET(XILINX_DPDMA_INTR_NO_OSTAND_MASK, status);
 	if (masked)
 		for_each_set_bit(i, &masked, XILINX_DPDMA_NUM_CHAN)
 			xilinx_dpdma_chan_notify_no_ostand(xdev->chan[i]);
