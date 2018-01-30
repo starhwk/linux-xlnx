@@ -322,7 +322,7 @@ struct xilinx_dpdma_device {
 			  dma_addr_t dma_addr[], unsigned int num_src_addr);
 };
 
-#ifdef CONFIG_XILINX_DPDMA_DEBUG_FS
+#ifdef CONFIG_DEBUG_FS
 #define XILINX_DPDMA_DEBUGFS_READ_MAX_SIZE	32
 #define XILINX_DPDMA_DEBUGFS_UINT16_MAX_STR	"65535"
 #define IN_RANGE(x, min, max) ({		\
@@ -548,7 +548,7 @@ static int xilinx_dpdma_debugfs_init(struct device *dev)
 static void xilinx_dpdma_debugfs_intr_done_count_incr(int chan_id)
 {
 }
-#endif /* CONFIG_XILINX_DPDMA_DEBUG_FS */
+#endif /* CONFIG_DEBUG_FS */
 
 #define to_dpdma_tx_desc(tx) \
 	container_of(tx, struct xilinx_dpdma_tx_desc, async_tx)
