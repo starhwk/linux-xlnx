@@ -172,12 +172,12 @@ struct xilinx_dpdma_hw_desc {
  * struct xilinx_dpdma_sw_desc - DPDMA software descriptor
  * @hw: DPDMA hardware descriptor
  * @node: list node for software descriptors
- * @phys: physical address of the software descriptor
+ * @dma_addr: dma address of the software descriptor
  */
 struct xilinx_dpdma_sw_desc {
 	struct xilinx_dpdma_hw_desc hw;
 	struct list_head node;
-	dma_addr_t phys;
+	dma_addr_t dma_addr;
 };
 
 /**
@@ -592,7 +592,7 @@ static inline void
 xilinx_dpdma_sw_desc_next_32(struct xilinx_dpdma_sw_desc *sw_desc,
 			     struct xilinx_dpdma_sw_desc *next)
 {
-	sw_desc->hw.next_desc = next->phys;
+	sw_desc->hw.next_desc = next->dma_addr;
 }
 
 /**
@@ -638,9 +638,9 @@ static inline void
 xilinx_dpdma_sw_desc_next_64(struct xilinx_dpdma_sw_desc *sw_desc,
 			     struct xilinx_dpdma_sw_desc *next)
 {
-	sw_desc->hw.next_desc = lower_32_bits(next->phys);
+	sw_desc->hw.next_desc = lower_32_bits(next->dma_addr);
 	sw_desc->hw.addr_ext |= FIELD_PREP(XILINX_DPDMA_DESC_ADDR_EXT_LSB_MASK,
-					   upper_32_bits(next->phys));
+					   upper_32_bits(next->dma_addr));
 }
 
 /**
@@ -698,13 +698,13 @@ static struct xilinx_dpdma_sw_desc *
 xilinx_dpdma_chan_alloc_sw_desc(struct xilinx_dpdma_chan *chan)
 {
 	struct xilinx_dpdma_sw_desc *sw_desc;
-	dma_addr_t phys;
+	dma_addr_t dma_addr;
 
-	sw_desc = dma_pool_zalloc(chan->desc_pool, GFP_ATOMIC, &phys);
+	sw_desc = dma_pool_zalloc(chan->desc_pool, GFP_ATOMIC, &dma_addr);
 	if (!sw_desc)
 		return NULL;
 
-	sw_desc->phys = phys;
+	sw_desc->dma_addr = dma_addr;
 
 	return sw_desc;
 }
@@ -720,7 +720,7 @@ static void
 xilinx_dpdma_chan_free_sw_desc(struct xilinx_dpdma_chan *chan,
 			       struct xilinx_dpdma_sw_desc *sw_desc)
 {
-	dma_pool_free(chan->desc_pool, sw_desc, sw_desc->phys);
+	dma_pool_free(chan->desc_pool, sw_desc, sw_desc->dma_addr);
 }
 
 /**
@@ -744,7 +744,7 @@ static void xilinx_dpdma_chan_dump_tx_desc(struct xilinx_dpdma_chan *chan,
 		struct xilinx_dpdma_hw_desc *hw_desc = &sw_desc->hw;
 
 		dev_dbg(dev, "------- HW descriptor %d -------\n", i++);
-		dev_dbg(dev, "descriptor phys: %pad\n", &sw_desc->phys);
+		dev_dbg(dev, "descriptor dma addr: %pad\n", &sw_desc->dma_addr);
 		dev_dbg(dev, "control: 0x%08x\n", hw_desc->control);
 		dev_dbg(dev, "desc_id: 0x%08x\n", hw_desc->desc_id);
 		dev_dbg(dev, "xfer_size: 0x%08x\n", hw_desc->xfer_size);
@@ -1338,10 +1338,10 @@ static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 	sw_desc = list_first_entry(&chan->pending_desc->descriptors,
 				   struct xilinx_dpdma_sw_desc, node);
 	dpdma_write(chan->reg, XILINX_DPDMA_CH_DESC_START_ADDR,
-		    lower_32_bits(sw_desc->phys));
+		    lower_32_bits(sw_desc->dma_addr));
 	if (xdev->ext_addr)
 		dpdma_write(chan->reg, XILINX_DPDMA_CH_DESC_START_ADDRE,
-			    upper_32_bits(sw_desc->phys) &
+			    upper_32_bits(sw_desc->dma_addr) &
 			    XILINX_DPDMA_DESC_ADDR_EXT_LSB_MASK);
 
 	if (chan->first_frame) {
