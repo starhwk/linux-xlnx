@@ -264,7 +264,6 @@ enum xilinx_dpdma_chan_status {
  * @desc_pool: descriptor allocation pool
  * @done_task: done IRQ bottom half handler
  * @err_task: error IRQ bottom half handler
- * @pending_desc: pending descriptor to be scheduled in next period
  * @active_desc: descriptor that the DPDMA channel is active on
  * @done_list: done descriptor list
  * @xdev: DPDMA device
@@ -284,7 +283,6 @@ struct xilinx_dpdma_chan {
 	struct tasklet_struct done_task;
 	struct tasklet_struct err_task;
 
-	struct xilinx_dpdma_tx_desc *pending_desc;
 	struct xilinx_dpdma_tx_desc *active_desc;
 	struct list_head done_list;
 
@@ -848,8 +846,6 @@ static void xilinx_dpdma_chan_free_all_desc(struct xilinx_dpdma_chan *chan)
 		chan->status == STREAMING ? "STREAMING" : "IDLE");
 
 	vchan_free_chan_resources(&chan->vchan);
-	xilinx_dpdma_chan_free_tx_desc(chan, chan->pending_desc);
-	chan->pending_desc = NULL;
 	xilinx_dpdma_chan_free_tx_desc(chan, chan->active_desc);
 	chan->active_desc = NULL;
 	xilinx_dpdma_chan_free_desc_list(chan, &chan->done_list);
@@ -913,23 +909,27 @@ static void xilinx_dpdma_chan_cleanup_desc(struct xilinx_dpdma_chan *chan)
  * xilinx_dpdma_chan_desc_active - Set the descriptor as active
  * @chan: DPDMA channel
  *
- * Make the pending descriptor @chan->pending_desc as active. This function
- * should be called when the channel starts operating on the pending descriptor.
+ * Make the pending descriptor from vchan desc_issued list as active. This
+ * function should be called when the channel starts operating on the pending
+ * descriptor.
  */
 static void xilinx_dpdma_chan_desc_active(struct xilinx_dpdma_chan *chan)
 {
+	struct virt_dma_desc *vdesc;
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	if (!chan->pending_desc)
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_issued,
+					 struct virt_dma_desc, node);
+	if (!vdesc)
 		goto out_unlock;
 
 	if (chan->active_desc)
 		list_add_tail(&chan->active_desc->node, &chan->done_list);
 
-	chan->active_desc = chan->pending_desc;
-	chan->pending_desc = NULL;
+	chan->active_desc = to_dpdma_tx_desc(&vdesc->tx);
+	list_del(&vdesc->node);
 
 out_unlock:
 	spin_unlock_irqrestore(&chan->lock, flags);
@@ -1274,6 +1274,7 @@ xilinx_dpdma_chan_video_group_ready(struct xilinx_dpdma_chan *chan)
 static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 {
 	struct xilinx_dpdma_device *xdev = chan->xdev;
+	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc;
 	struct virt_dma_desc *vdesc;
 	unsigned long flags;
@@ -1281,15 +1282,20 @@ static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_issued,
 					 struct virt_dma_desc, node);
-	if (!vdesc || chan->pending_desc)
+	if (vdesc)
 		goto out_unlock;
 
-	chan->pending_desc = to_dpdma_tx_desc(&vdesc->tx);
-	list_del(&vdesc->node);
+	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+					 struct virt_dma_desc, node);
+	if (!vdesc)
+		goto out_unlock;
 
-	sw_desc = list_first_entry(&chan->pending_desc->descriptors,
+	list_move_tail(&vdesc->node, &chan->vchan.desc_issued);
+
+	tx_desc = to_dpdma_tx_desc(&vdesc->tx);
+	sw_desc = list_first_entry(&tx_desc->descriptors,
 				   struct xilinx_dpdma_sw_desc, node);
 	dpdma_write(chan->reg, XILINX_DPDMA_CH_DESC_START_ADDR,
 		    lower_32_bits(sw_desc->dma_addr));
@@ -1535,7 +1541,7 @@ xilinx_dpdma_chan_err(struct xilinx_dpdma_chan *chan, u32 isr, u32 eisr)
 static void xilinx_dpdma_chan_handle_err(struct xilinx_dpdma_chan *chan)
 {
 	struct xilinx_dpdma_device *xdev = chan->xdev;
-	struct virt_dma_desc *vdesc;
+	struct virt_dma_desc *submit, *issue;
 	struct device *dev = xdev->dev;
 	unsigned long flags;
 
@@ -1562,9 +1568,11 @@ static void xilinx_dpdma_chan_handle_err(struct xilinx_dpdma_chan *chan)
 	case ACTIVE:
 	case PREPARED:
 		/* Reschedule if there's no new descriptor */
-		vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
+		issue = list_first_entry_or_null(&chan->vchan.desc_issued,
 						 struct virt_dma_desc, node);
-		if (!chan->pending_desc && !vdesc) {
+		submit = list_first_entry_or_null(&chan->vchan.desc_submitted,
+						  struct virt_dma_desc, node);
+		if (!issue && !submit) {
 			chan->active_desc->status = ERRORED;
 			list_add(&chan->active_desc->vdesc.node,
 				 &chan->vchan.desc_submitted);
@@ -2002,6 +2010,14 @@ static irqreturn_t xilinx_dpdma_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static void xilinx_dpdma_free_desc(struct virt_dma_desc *vdesc)
+{
+	struct xilinx_dpdma_tx_desc *tx_desc = to_dpdma_tx_desc(&vdesc->tx);
+	struct xilinx_dpdma_chan *chan = to_xilinx_chan(vdesc->tx.chan);
+
+	xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
+}
+
 /* Initialization operations */
 
 static struct xilinx_dpdma_chan *
@@ -2046,6 +2062,7 @@ xilinx_dpdma_chan_probe(struct device_node *node,
 
 	chan->xdev = xdev;
 	xdev->chan[chan->id] = chan;
+	chan->vchan.desc_free = xilinx_dpdma_free_desc;
 	vchan_init(&chan->vchan, &xdev->common);
 
 	return chan;
