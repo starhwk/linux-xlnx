@@ -265,7 +265,6 @@ enum xilinx_dpdma_chan_status {
  * @done_task: done IRQ bottom half handler
  * @err_task: error IRQ bottom half handler
  * @active_desc: descriptor that the DPDMA channel is active on
- * @done_list: done descriptor list
  * @xdev: DPDMA device
  */
 struct xilinx_dpdma_chan {
@@ -284,7 +283,6 @@ struct xilinx_dpdma_chan {
 	struct tasklet_struct err_task;
 
 	struct xilinx_dpdma_tx_desc *active_desc;
-	struct list_head done_list;
 
 	struct xilinx_dpdma_device *xdev;
 };
@@ -810,24 +808,6 @@ xilinx_dpdma_chan_free_tx_desc(struct xilinx_dpdma_chan *chan,
 }
 
 /**
- * xilinx_dpdma_chan_free_desc_list - Free a descriptor list
- * @chan: DPDMA channel
- * @list: tx descriptor list
- *
- * Free tx descriptors in the list @list.
- */
-static void xilinx_dpdma_chan_free_desc_list(struct xilinx_dpdma_chan *chan,
-					     struct list_head *list)
-{
-	struct xilinx_dpdma_tx_desc *tx_desc, *next;
-
-	list_for_each_entry_safe(tx_desc, next, list, node) {
-		list_del(&tx_desc->node);
-		xilinx_dpdma_chan_free_tx_desc(chan, tx_desc);
-	}
-}
-
-/**
  * xilinx_dpdma_chan_free_all_desc - Free all descriptors of the channel
  * @chan: DPDMA channel
  *
@@ -848,7 +828,6 @@ static void xilinx_dpdma_chan_free_all_desc(struct xilinx_dpdma_chan *chan)
 	vchan_free_chan_resources(&chan->vchan);
 	xilinx_dpdma_chan_free_tx_desc(chan, chan->active_desc);
 	chan->active_desc = NULL;
-	xilinx_dpdma_chan_free_desc_list(chan, &chan->done_list);
 
 	spin_unlock_irqrestore(&chan->lock, flags);
 }
@@ -863,6 +842,7 @@ static void xilinx_dpdma_chan_free_all_desc(struct xilinx_dpdma_chan *chan)
 static void xilinx_dpdma_chan_cleanup_desc(struct xilinx_dpdma_chan *chan)
 {
 	struct xilinx_dpdma_tx_desc *desc;
+	struct virt_dma_desc *vdesc;
 	dma_async_tx_callback callback;
 	void *callback_param;
 	unsigned long flags;
@@ -870,23 +850,23 @@ static void xilinx_dpdma_chan_cleanup_desc(struct xilinx_dpdma_chan *chan)
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	while (!list_empty(&chan->done_list)) {
-		desc = list_first_entry(&chan->done_list,
-					struct xilinx_dpdma_tx_desc, node);
-		list_del(&desc->node);
+	while (!list_empty(&chan->vchan.desc_completed)) {
+		vdesc = list_first_entry(&chan->vchan.desc_completed,
+					 struct virt_dma_desc, node);
+		desc = to_dpdma_tx_desc(&vdesc->tx);
 
 		cnt = desc->done_cnt;
 		desc->done_cnt = 0;
-		callback = desc->vdesc.tx.callback;
-		callback_param = desc->vdesc.tx.callback_param;
+		callback = vdesc->tx.callback;
+		callback_param = vdesc->tx.callback_param;
+		vchan_tx_desc_free(&vdesc->tx);
 		if (callback) {
 			spin_unlock_irqrestore(&chan->lock, flags);
 			for (i = 0; i < cnt; i++)
 				callback(callback_param);
+
 			spin_lock_irqsave(&chan->lock, flags);
 		}
-
-		xilinx_dpdma_chan_free_tx_desc(chan, desc);
 	}
 
 	if (chan->active_desc) {
@@ -926,7 +906,8 @@ static void xilinx_dpdma_chan_desc_active(struct xilinx_dpdma_chan *chan)
 		goto out_unlock;
 
 	if (chan->active_desc)
-		list_add_tail(&chan->active_desc->node, &chan->done_list);
+		list_add_tail(&chan->active_desc->vdesc.node,
+			      &chan->vchan.desc_completed);
 
 	chan->active_desc = to_dpdma_tx_desc(&vdesc->tx);
 	list_del(&vdesc->node);
@@ -2052,7 +2033,6 @@ xilinx_dpdma_chan_probe(struct device_node *node,
 	chan->status = IDLE;
 
 	spin_lock_init(&chan->lock);
-	INIT_LIST_HEAD(&chan->done_list);
 	init_waitqueue_head(&chan->wait_to_stop);
 
 	tasklet_init(&chan->done_task, xilinx_dpdma_chan_done_task,
