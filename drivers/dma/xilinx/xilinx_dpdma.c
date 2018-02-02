@@ -222,19 +222,24 @@ enum xilinx_dpdma_chan_status {
 };
 
 /*
- * DPDMA descriptor placement
- * --------------------------
- * DPDMA descritpor life time is described with following placements:
+ * DPDMA descriptor management
+ * ---------------------------
+ * DPDMA descritpor management follows virt_chan management with below notes
  *
- * allocated_desc -> submitted_desc -> pending_desc -> active_desc -> done_list
+ * desc_allocated -> desc_submitted -> desc_issued -> active_desc ->
+ * desc_completed
+ *
+ * All descriptor lists other than @active_desc are part of
+ * struct virt_dma_chan. @active_desc is used to track the descriptor that
+ * the dma channel is currently operating on.
  *
  * Transition is triggered as following:
  *
- * -> allocated_desc : a descriptor allocation
- * allocated_desc -> submitted_desc: a descriptor submission
- * submitted_desc -> pending_desc: request to issue pending a descriptor
- * pending_desc -> active_desc: VSYNC intr when a desc is scheduled to DPDMA
- * active_desc -> done_list: VSYNC intr when DPDMA switches to a new desc
+ * -> desc_allocated : vchan_tx_prep() in descriptor allocation
+ * desc_allocated -> desc_submitted: by vchan_tx_submit()
+ * desc_submitted -> desc_issued: by vchan_issue_pending()
+ * desc_issued -> active_desc: VSYNC intr after a desc is issued to a channel
+ * active_desc -> desc_completed: by vchan_cookie_complete()
  */
 
 /**
@@ -835,8 +840,11 @@ static void xilinx_dpdma_chan_desc_active(struct xilinx_dpdma_chan *chan)
 	if (!vdesc)
 		goto out_unlock;
 
-	if (chan->active_desc)
+	if (chan->active_desc) {
+		/* callback is already queued by vchan_cyclic_callback() */
+		chan->active_desc->vdesc.tx.callback = NULL;
 		vchan_cookie_complete(&chan->active_desc->vdesc);
+	}
 
 	chan->active_desc = to_dpdma_tx_desc(&vdesc->tx);
 	list_del(&vdesc->node);
@@ -869,9 +877,9 @@ static void xilinx_dpdma_chan_desc_done_intr(struct xilinx_dpdma_chan *chan)
 	if (chan->active_desc->status == PREPARED)
 		chan->active_desc->status = ACTIVE;
 
+	vchan_cyclic_callback(&chan->active_desc->vdesc);
 out_unlock:
 	spin_unlock_irqrestore(&chan->lock, flags);
-	vchan_cyclic_callback(&chan->active_desc->vdesc);
 }
 
 /**
@@ -1502,33 +1510,22 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
-					 struct virt_dma_desc, node);
-	if (vdesc) {
-		cookie = vdesc->tx.cookie;
-		goto out_unlock;
-	}
-
-	cookie = dma_cookie_assign(&tx_desc->vdesc.tx);
-
-	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
-		sw_desc->hw.desc_id = cookie;
-
 	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
 					 struct virt_dma_desc, node);
 	if (&tx_desc->vdesc != vdesc)
-		dev_err(chan->xdev->dev, "desc != allocated_desc\n");
-	else
-		list_del(&vdesc->node);
-	list_add(&tx_desc->vdesc.node, &chan->vchan.desc_submitted);
+		dev_warn(chan->xdev->dev, "submitted desc != allocated desc\n");
 
+	cookie = vchan_tx_submit(tx);
+	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
+		sw_desc->hw.desc_id = cookie;
+
+	/* Synchronize slave video channels with master */
 	if (chan->id == XILINX_DPDMA_VIDEO1 ||
 	    chan->id == XILINX_DPDMA_VIDEO2) {
 		chan->video_group = true;
 		chan->xdev->chan[XILINX_DPDMA_VIDEO0]->video_group = true;
 	}
 
-out_unlock:
 	spin_unlock_irqrestore(&chan->lock, flags);
 
 	return cookie;
@@ -1739,6 +1736,7 @@ static void xilinx_dpdma_synchronize(struct dma_chan *dchan)
 	}
 
 	tasklet_kill(&chan->err_task);
+	vchan_synchronize(&chan->vchan);
 	xilinx_dpdma_chan_free_all_desc(chan);
 }
 
