@@ -1,0 +1,56 @@
+Device-Tree bindings for Xilinx ZynqMP DisplayPort DMA engine
+
+The ZynqMP DisplayPort subsystem handles DMA channel buffer management,
+blending, and audio mixing. The DisplayPort subsystem receives display
+and audio frames from DPDMA and transmits output to the DisplayPort IP core.
+
+Required properties:
+ - compatible: Should be "xlnx,zynqmp-dpdma".
+ - reg: Base address and size of the IP core.
+ - interrupts: Interrupt number.
+ - interrupts-parent: phandle for interrupt controller.
+ - clocks: phandle for AXI clock
+ - clock-names: The identification string, "axi_clk", is always required.
+ - #dma-channels: Should be <6>.
+ - #dma-cells: Should be <1> for channel ID. Please see "dmas" in "DMA client"
+ section below.
+
+Example:
+
+	dma-controller: dma-controller@43c10000 {
+		compatible = "xlnx,zynqmp-dpdma";
+		reg = <0x43c10000 0x1000>;
+		interrupts = <0 54 4>;
+		interrupt-parent = <&intc>;
+		clocks = <&clkc 16>;
+		clock-names = "axi_clk";
+
+		dma-channels = <6>;
+		#dma-cells = <1>;
+	};
+
+* DMA client
+
+Required properties:
+- dmas: a list of <[DPDMA device phandle] [Channel ID]> pairs. "Channel ID"
+  is defined as video0 = 0, video1 = 1, video2 = 2, graphics = 3, audio0 = 4,
+  and audio1 = 5.
+
+Example:
+
+	zynqmp-display@fd4a0000 {
+		compatible = "xlnx,zynqmp-dpsub-1.7";
+		reg = <0x0 0xfd4a0000 0x0 0x1000>,
+		      <0x0 0xfd4aa000 0x0 0x1000>,
+		      <0x0 0xfd4ab000 0x0 0x1000>,
+		      <0x0 0xfd4ac000 0x0 0x1000>;
+
+		...
+
+		dma-names = "vid0", "vid1", "vid2", "gfx0";
+		dmas = <&dma-controller 0>,
+		       <&dma-controller 1>,
+		       <&dma-controller 2>,
+		       <&dma-controller 3>;
+		...
+	};
