@@ -900,8 +900,7 @@ static void xilinx_dpdma_chan_desc_active(struct xilinx_dpdma_chan *chan)
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_issued,
-					 struct virt_dma_desc, node);
+	vdesc = vchan_next_desc(&chan->vchan);
 	if (!vdesc)
 		goto out_unlock;
 
@@ -1263,18 +1262,14 @@ static void xilinx_dpdma_chan_issue_pending(struct xilinx_dpdma_chan *chan)
 
 	spin_lock_irqsave(&chan->lock, flags);
 
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_issued,
-					 struct virt_dma_desc, node);
+	vdesc = vchan_next_desc(&chan->vchan);
 	if (vdesc)
 		goto out_unlock;
 
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_submitted,
-					 struct virt_dma_desc, node);
-	if (!vdesc)
+	if (!vchan_issue_pending(&chan->vchan))
 		goto out_unlock;
 
-	list_move_tail(&vdesc->node, &chan->vchan.desc_issued);
-
+	vdesc = vchan_next_desc(&chan->vchan);
 	tx_desc = to_dpdma_tx_desc(&vdesc->tx);
 	sw_desc = list_first_entry(&tx_desc->descriptors,
 				   struct xilinx_dpdma_sw_desc, node);
@@ -1549,8 +1544,7 @@ static void xilinx_dpdma_chan_handle_err(struct xilinx_dpdma_chan *chan)
 	case ACTIVE:
 	case PREPARED:
 		/* Reschedule if there's no new descriptor */
-		issue = list_first_entry_or_null(&chan->vchan.desc_issued,
-						 struct virt_dma_desc, node);
+		issue = vchan_next_desc(&chan->vchan);
 		submit = list_first_entry_or_null(&chan->vchan.desc_submitted,
 						  struct virt_dma_desc, node);
 		if (!issue && !submit) {
