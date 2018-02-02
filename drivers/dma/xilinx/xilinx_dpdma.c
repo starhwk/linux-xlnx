@@ -2095,7 +2095,7 @@ static int xilinx_dpdma_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id xilinx_dpdma_of_match[] = {
-	{ .compatible = "xlnx,dpdma",},
+	{ .compatible = "xlnx,zynqmp-dpdma",},
 	{ /* end of table */ },
 };
 MODULE_DEVICE_TABLE(of, xilinx_dpdma_of_match);
@@ -2104,7 +2104,7 @@ static struct platform_driver xilinx_dpdma_driver = {
 	.probe			= xilinx_dpdma_probe,
 	.remove			= xilinx_dpdma_remove,
 	.driver			= {
-		.name		= "xilinx-dpdma",
+		.name		= "xilinx-zynqmp-dpdma",
 		.of_match_table	= xilinx_dpdma_of_match,
 	},
 };
@@ -2112,5 +2112,5 @@ static struct platform_driver xilinx_dpdma_driver = {
 module_platform_driver(xilinx_dpdma_driver);
 
 MODULE_AUTHOR("Xilinx, Inc.");
-MODULE_DESCRIPTION("Xilinx DPDMA driver");
+MODULE_DESCRIPTION("Xilinx ZynqMP DPDMA driver");
 MODULE_LICENSE("GPL v2");
