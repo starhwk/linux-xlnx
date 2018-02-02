@@ -936,14 +936,8 @@ xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc, *last = NULL;
-	struct virt_dma_desc *vdesc;
 	struct scatterlist *iter = sgl;
 	u32 line_size = 0;
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (vdesc)
-		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1025,14 +1019,8 @@ xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc, *last = NULL;
-	struct virt_dma_desc *vdesc;
 	unsigned int periods = buf_len / period_len;
 	unsigned int i;
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (vdesc)
-		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1104,7 +1092,6 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc;
 	struct xilinx_dpdma_hw_desc *hw_desc;
-	struct virt_dma_desc *vdesc;
 	size_t hsize = xt->sgl[0].size;
 	size_t stride = hsize + xt->sgl[0].icg;
 
@@ -1113,11 +1100,6 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 			XILINX_DPDMA_ALIGN_BYTES);
 		return NULL;
 	}
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (vdesc)
-		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
