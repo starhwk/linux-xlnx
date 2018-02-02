@@ -2104,13 +2104,14 @@ static int xilinx_dpdma_remove(struct platform_device *pdev)
 
 	xdev = platform_get_drvdata(pdev);
 
+	xilinx_dpdma_disable_intr(xdev);
 	free_irq(xdev->irq, xdev);
 	for (i = 0; i < XILINX_DPDMA_NUM_CHAN; i++)
-		if (xdev->chan[i])
-			xilinx_dpdma_chan_remove(xdev->chan[i]);
-	xilinx_dpdma_disable_intr(xdev);
+		tasklet_kill(&xdev->chan[i]->err_task);
 	of_dma_controller_free(pdev->dev.of_node);
 	dma_async_device_unregister(&xdev->common);
+	for (i = 0; i < XILINX_DPDMA_NUM_CHAN; i++)
+		list_del(&xdev->chan[i]->vchan.chan.device_node);
 	clk_disable_unprepare(xdev->axi_clk);
 
 	return 0;
