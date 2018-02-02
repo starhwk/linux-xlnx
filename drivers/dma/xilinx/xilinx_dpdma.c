@@ -120,6 +120,12 @@
 #define XILINX_DPDMA_DESC_ADDR_EXT_MSB_MASK		GENMASK(31, 16)
 
 #define XILINX_DPDMA_ALIGN_BYTES			256
+#define XILINX_DPDMA_VIDEO0				0
+#define XILINX_DPDMA_VIDEO1				1
+#define XILINX_DPDMA_VIDEO2				2
+#define XILINX_DPDMA_GRAPHICS				3
+#define XILINX_DPDMA_AUDIO0				4
+#define XILINX_DPDMA_AUDIO1				5
 #define XILINX_DPDMA_NUM_CHAN				6
 
 /**
@@ -206,24 +212,6 @@ struct xilinx_dpdma_tx_desc {
 };
 
 /**
- * enum xilinx_dpdma_chan_id - DPDMA channel ID
- * @VIDEO0: video 1st channel
- * @VIDEO1: video 2nd channel for multi plane yuv formats
- * @VIDEO2: video 3rd channel for multi plane yuv formats
- * @GRAPHICS: graphics channel
- * @AUDIO0: 1st audio channel
- * @AUDIO1: 2nd audio channel
- */
-enum xilinx_dpdma_chan_id {
-	VIDEO0,
-	VIDEO1,
-	VIDEO2,
-	GRAPHICS,
-	AUDIO0,
-	AUDIO1
-};
-
-/**
  * enum xilinx_dpdma_chan_status - DPDMA channel status
  * @IDLE: idle state
  * @STREAMING: actively streaming state
@@ -267,7 +255,7 @@ enum xilinx_dpdma_chan_status {
 struct xilinx_dpdma_chan {
 	struct virt_dma_chan vchan;
 	void __iomem *reg;
-	enum xilinx_dpdma_chan_id id;
+	u8 id;
 
 	wait_queue_head_t wait_to_stop;
 	enum xilinx_dpdma_chan_status status;
@@ -325,7 +313,7 @@ enum xilinx_dpdma_testcases {
 struct xilinx_dpdma_debugfs {
 	enum xilinx_dpdma_testcases testcase;
 	u16 xilinx_dpdma_intr_done_count;
-	enum xilinx_dpdma_chan_id chan_id;
+	u8 chan_id;
 };
 
 static struct xilinx_dpdma_debugfs dpdma_debugfs;
@@ -369,7 +357,7 @@ xilinx_dpdma_debugfs_desc_done_intr_write(char **dpdma_test_arg)
 	arg_chan_id = strsep(dpdma_test_arg, " ");
 	id = xilinx_dpdma_debugfs_argument_value(arg_chan_id);
 
-	if (id < 0 || !IN_RANGE(id, VIDEO0, AUDIO1))
+	if (id < 0 || !IN_RANGE(id, XILINX_DPDMA_VIDEO0, XILINX_DPDMA_AUDIO1))
 		return -EINVAL;
 
 	dpdma_debugfs.testcase = DPDMA_TC_INTR_DONE;
@@ -1170,7 +1158,7 @@ xilinx_dpdma_chan_video_group_ready(struct xilinx_dpdma_chan *chan)
 	struct xilinx_dpdma_device *xdev = chan->xdev;
 	u32 i = 0, ret = 0;
 
-	for (i = VIDEO0; i < GRAPHICS; i++) {
+	for (i = XILINX_DPDMA_VIDEO0; i < XILINX_DPDMA_GRAPHICS; i++) {
 		if (xdev->chan[i]->video_group &&
 		    xdev->chan[i]->status != STREAMING)
 			return 0;
@@ -1534,9 +1522,10 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 		list_del(&vdesc->node);
 	list_add(&tx_desc->vdesc.node, &chan->vchan.desc_submitted);
 
-	if (chan->id == VIDEO1 || chan->id == VIDEO2) {
+	if (chan->id == XILINX_DPDMA_VIDEO1 ||
+	    chan->id == XILINX_DPDMA_VIDEO2) {
 		chan->video_group = true;
-		chan->xdev->chan[VIDEO0]->video_group = true;
+		chan->xdev->chan[XILINX_DPDMA_VIDEO0]->video_group = true;
 	}
 
 out_unlock:
@@ -1694,7 +1683,7 @@ static int xilinx_dpdma_terminate_all(struct dma_chan *dchan)
 	unsigned int i;
 
 	if (chan->video_group) {
-		for (i = VIDEO0; i < GRAPHICS; i++) {
+		for (i = XILINX_DPDMA_VIDEO0; i < XILINX_DPDMA_GRAPHICS; i++) {
 			struct xilinx_dpdma_chan *other = xdev->chan[i];
 
 			if (other->video_group &&
@@ -1731,7 +1720,7 @@ static void xilinx_dpdma_synchronize(struct dma_chan *dchan)
 	unsigned int i;
 
 	if (chan->video_group) {
-		for (i = VIDEO0; i < GRAPHICS; i++) {
+		for (i = XILINX_DPDMA_VIDEO0; i < XILINX_DPDMA_GRAPHICS; i++) {
 			struct xilinx_dpdma_chan *other = xdev->chan[i];
 
 			if (other->video_group &&
@@ -1921,32 +1910,14 @@ static void xilinx_dpdma_free_desc(struct virt_dma_desc *vdesc)
 /* Initialization operations */
 
 static struct xilinx_dpdma_chan *
-xilinx_dpdma_chan_probe(struct device_node *node,
-			struct xilinx_dpdma_device *xdev)
+xilinx_dpdma_chan_probe(struct xilinx_dpdma_device *xdev, u8 id)
 {
 	struct xilinx_dpdma_chan *chan;
 
 	chan = devm_kzalloc(xdev->dev, sizeof(*chan), GFP_KERNEL);
 	if (!chan)
 		return ERR_PTR(-ENOMEM);
-
-	if (of_device_is_compatible(node, "xlnx,video0")) {
-		chan->id = VIDEO0;
-	} else if (of_device_is_compatible(node, "xlnx,video1")) {
-		chan->id = VIDEO1;
-	} else if (of_device_is_compatible(node, "xlnx,video2")) {
-		chan->id = VIDEO2;
-	} else if (of_device_is_compatible(node, "xlnx,graphics")) {
-		chan->id = GRAPHICS;
-	} else if (of_device_is_compatible(node, "xlnx,audio0")) {
-		chan->id = AUDIO0;
-	} else if (of_device_is_compatible(node, "xlnx,audio1")) {
-		chan->id = AUDIO1;
-	} else {
-		dev_err(xdev->dev, "invalid channel compatible string in DT\n");
-		return ERR_PTR(-EINVAL);
-	}
-
+	chan->id = id;
 	chan->reg = xdev->reg + XILINX_DPDMA_CH_BASE + XILINX_DPDMA_CH_OFFSET *
 		    chan->id;
 	chan->status = IDLE;
@@ -1992,7 +1963,6 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	struct xilinx_dpdma_chan *chan;
 	struct dma_device *ddev;
 	struct resource *res;
-	struct device_node *node, *child;
 	u32 i;
 	int ret;
 
@@ -2003,7 +1973,6 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	xdev->dev = &pdev->dev;
 	ddev = &xdev->common;
 	ddev->dev = &pdev->dev;
-	node = xdev->dev->of_node;
 
 	xdev->axi_clk = devm_clk_get(xdev->dev, "axi_clk");
 	if (IS_ERR(xdev->axi_clk))
@@ -2050,8 +2019,8 @@ static int xilinx_dpdma_probe(struct platform_device *pdev)
 	ddev->directions = BIT(DMA_MEM_TO_DEV);
 	ddev->residue_granularity = DMA_RESIDUE_GRANULARITY_DESCRIPTOR;
 
-	for_each_child_of_node(node, child) {
-		chan = xilinx_dpdma_chan_probe(child, xdev);
+	for (i = 0; i < XILINX_DPDMA_NUM_CHAN; i++) {
+		chan = xilinx_dpdma_chan_probe(xdev, i);
 		if (IS_ERR(chan)) {
 			dev_err(xdev->dev, "failed to probe a channel\n");
 			ret = PTR_ERR(chan);
