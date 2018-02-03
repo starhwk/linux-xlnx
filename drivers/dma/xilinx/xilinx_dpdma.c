@@ -831,7 +831,7 @@ static void xilinx_dpdma_chan_free_all_desc(struct xilinx_dpdma_chan *chan)
  */
 static void xilinx_dpdma_chan_desc_active(struct xilinx_dpdma_chan *chan)
 {
-	struct virt_dma_desc *vdesc;
+	struct virt_dma_desc *vdesc, *next;
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->lock, flags);
@@ -846,8 +846,15 @@ static void xilinx_dpdma_chan_desc_active(struct xilinx_dpdma_chan *chan)
 		vchan_cookie_complete(&chan->active_desc->vdesc);
 	}
 
-	chan->active_desc = to_dpdma_tx_desc(&vdesc->tx);
+	/* Show the last frame and mark rest as completed */
 	list_del(&vdesc->node);
+	while ((next = vchan_next_desc(&chan->vchan))) {
+		vchan_cookie_complete(vdesc);
+		list_del(&next->node);
+		vdesc = next;
+	}
+
+	chan->active_desc = to_dpdma_tx_desc(&vdesc->tx);
 
 out_unlock:
 	spin_unlock_irqrestore(&chan->lock, flags);
@@ -898,14 +905,8 @@ xilinx_dpdma_chan_prep_slave_sg(struct xilinx_dpdma_chan *chan,
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc, *last = NULL;
-	struct virt_dma_desc *vdesc;
 	struct scatterlist *iter = sgl;
 	u32 line_size = 0;
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (vdesc)
-		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -987,14 +988,8 @@ xilinx_dpdma_chan_prep_cyclic(struct xilinx_dpdma_chan *chan,
 {
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc, *last = NULL;
-	struct virt_dma_desc *vdesc;
 	unsigned int periods = buf_len / period_len;
 	unsigned int i;
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (vdesc)
-		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1066,7 +1061,6 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 	struct xilinx_dpdma_tx_desc *tx_desc;
 	struct xilinx_dpdma_sw_desc *sw_desc;
 	struct xilinx_dpdma_hw_desc *hw_desc;
-	struct virt_dma_desc *vdesc;
 	size_t hsize = xt->sgl[0].size;
 	size_t stride = hsize + xt->sgl[0].icg;
 
@@ -1075,11 +1069,6 @@ xilinx_dpdma_chan_prep_interleaved(struct xilinx_dpdma_chan *chan,
 			XILINX_DPDMA_ALIGN_BYTES);
 		return NULL;
 	}
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (vdesc)
-		return vdesc;
 
 	tx_desc = xilinx_dpdma_chan_alloc_tx_desc(chan);
 	if (!tx_desc)
@@ -1504,16 +1493,10 @@ static dma_cookie_t xilinx_dpdma_tx_submit(struct dma_async_tx_descriptor *tx)
 	struct xilinx_dpdma_chan *chan = to_xilinx_chan(tx->chan);
 	struct xilinx_dpdma_tx_desc *tx_desc = to_dpdma_tx_desc(tx);
 	struct xilinx_dpdma_sw_desc *sw_desc;
-	struct virt_dma_desc *vdesc;
 	dma_cookie_t cookie;
 	unsigned long flags;
 
 	spin_lock_irqsave(&chan->lock, flags);
-
-	vdesc = list_first_entry_or_null(&chan->vchan.desc_allocated,
-					 struct virt_dma_desc, node);
-	if (&tx_desc->vdesc != vdesc)
-		dev_warn(chan->xdev->dev, "submitted desc != allocated desc\n");
 
 	cookie = vchan_tx_submit(tx);
 	list_for_each_entry(sw_desc, &tx_desc->descriptors, node)
