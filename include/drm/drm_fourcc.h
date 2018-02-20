@@ -87,14 +87,16 @@ struct drm_format_info {
 	/**
 	 * @hsub:
 	 *
-	 * Horizontal chroma subsampling factor
+	 * Horizontal chroma subsampling factor. This is only valid for YUV
+	 * formats.
 	 */
 	u8 hsub;
 
 	/**
 	 * @vsub:
 	 *
-	 * Vertical chroma subsampling factor
+	 * Vertical chroma subsampling factor. This is only valid for YUV
+	 * formats.
 	 */
 	u8 vsub;
 	/**
