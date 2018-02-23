@@ -68,9 +68,13 @@ struct drm_format_info {
 	 *
 	 * Number of pixels per macro-pixel (per plane). A macro-pixel is
 	 * composed of multiple pixels, and there can be extra bits between
-	 * pixels. This must be used along with @bytes_per_macropixel, only
-	 * when single pixel size is not byte-aligned. In this case, @cpp
-	 * is not valid and should be 0.
+	 * pixels. This reflects the number of physically sampled pixels.
+	 * If there's any subsampling, the value should be number of subsampled
+	 * pixels, and the number of pixels that a macropixel covers is
+	 * (@pixels_per_macropixel * subsampling factor).
+	 * This must be used along with @bytes_per_macropixel, only when
+	 * single pixel size is not byte-aligned. In this case, @cpp is not
+	 * valid and should be 0.
 	 */
 	u8 pixels_per_macropixel[3];
 
