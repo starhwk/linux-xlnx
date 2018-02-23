@@ -370,11 +370,11 @@ EXPORT_SYMBOL(drm_format_plane_height);
  * @plane: plane index
  * @width: width to get the number of bytes
  *
- * This returns the number of bytes for given @width and @plane.
- * The @cpp or macro pixel information should be valid.
+ * This returns the number of bytes needed for given @width and @plane.
+ * Only one of @cpp or macropixel information should be valid.
  *
  * Returns:
- * The bytes of @width of @plane. 0 for invalid format info.
+ * The bytes for @width of @plane. 0 for invalid format info.
  */
 int drm_format_plane_width_bytes(const struct drm_format_info *info,
 				 int plane, int width)
