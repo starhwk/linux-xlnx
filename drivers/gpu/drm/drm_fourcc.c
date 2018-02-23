@@ -260,6 +260,10 @@ EXPORT_SYMBOL(drm_format_num_planes);
  * @format: pixel format (DRM_FORMAT_*)
  * @plane: plane index
  *
+ * This returns the bytes per pixel value for @plane of @format. The cpp
+ * in the format info is '0' for formats with macropixel, thus this function
+ * can't be used for those formats.
+ *
  * Returns:
  * The bytes per pixel value for the specified plane.
  */
@@ -270,6 +274,9 @@ int drm_format_plane_cpp(uint32_t format, int plane)
 	info = drm_format_info(format);
 	if (!info || plane >= info->num_planes)
 		return 0;
+
+	/* Warn if it's a macropixel format.*/
+	WARN_ON(!info->cpp[plane]);
 
 	return info->cpp[plane];
 }
@@ -375,8 +382,11 @@ int drm_format_plane_width_bytes(const struct drm_format_info *info,
 	if (!info || plane >= info->num_planes)
 		return 0;
 
-	if (info->cpp[plane])
+	if (info->cpp[plane]) {
+		WARN_ON(info->bytes_per_macropixel[plane] ||
+			info->pixels_per_macropixel[plane]);
 		return info->cpp[plane] * width;
+	}
 
 	if (WARN_ON(!info->bytes_per_macropixel[plane] ||
 		    !info->pixels_per_macropixel[plane])) {
