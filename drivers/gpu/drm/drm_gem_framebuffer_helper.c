@@ -159,9 +159,9 @@ drm_gem_fb_create_with_funcs(struct drm_device *dev, struct drm_file *file,
 			goto err_gem_object_put;
 		}
 
-		min_size = (height - 1) * mode_cmd->pitches[i]
-			 + width * info->cpp[i]
-			 + mode_cmd->offsets[i];
+		min_size = (height - 1) * mode_cmd->pitches[i] +
+			   drm_format_plane_width_bytes(info, i, width) +
+			   mode_cmd->offsets[i];
 
 		if (objs[i]->size < min_size) {
 			drm_gem_object_put_unlocked(objs[i]);
