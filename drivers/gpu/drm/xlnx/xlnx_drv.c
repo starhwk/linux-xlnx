@@ -46,7 +46,7 @@
 /**
  * struct xlnx_drm - Xilinx DRM private data
  * @drm: DRM core
- * @crtc: Xilinx DRM CRTC helper
+ * @crtc_helper: Helper to access Xilinx CRTCs
  * @fb: DRM fb helper
  * @master: logical master device for pipeline
  * @suspend_state: atomic state for suspend / resume
@@ -54,7 +54,7 @@
  */
 struct xlnx_drm {
 	struct drm_device *drm;
-	struct xlnx_crtc_helper crtc;
+	struct xlnx_crtc_helper crtc_helper;
 	struct drm_fb_helper *fb;
 	struct platform_device *master;
 	struct drm_atomic_state *suspend_state;
@@ -71,7 +71,7 @@ struct xlnx_crtc_helper *xlnx_get_crtc_helper(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
-	return &xlnx_drm->crtc;
+	return &xlnx_drm->crtc_helper;
 }
 
 /**
@@ -84,7 +84,7 @@ unsigned int xlnx_get_align(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
-	return xlnx_crtc_helper_get_align(&xlnx_drm->crtc);
+	return xlnx_crtc_helper_get_align(&xlnx_drm->crtc_helper);
 }
 
 /**
@@ -97,7 +97,7 @@ uint32_t xlnx_get_format(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
-	return xlnx_crtc_helper_get_format(&xlnx_drm->crtc);
+	return xlnx_crtc_helper_get_format(&xlnx_drm->crtc_helper);
 }
 
 static void xlnx_output_poll_changed(struct drm_device *drm)
@@ -118,16 +118,18 @@ static const struct drm_mode_config_funcs xlnx_mode_config_funcs = {
 static void xlnx_mode_config_init(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
-	struct xlnx_crtc_helper *crtc = &xlnx_drm->crtc;
+	struct xlnx_crtc_helper *crtc_helper = &xlnx_drm->crtc_helper;
 
 	drm->mode_config.min_width = 0;
 	drm->mode_config.min_height = 0;
-	drm->mode_config.max_width = xlnx_crtc_helper_get_max_width(crtc);
-	drm->mode_config.max_height = xlnx_crtc_helper_get_max_height(crtc);
+	drm->mode_config.max_width =
+		xlnx_crtc_helper_get_max_width(crtc_helper);
+	drm->mode_config.max_height =
+		xlnx_crtc_helper_get_max_height(crtc_helper);
 	drm->mode_config.cursor_width =
-		xlnx_crtc_helper_get_cursor_width(crtc);
+		xlnx_crtc_helper_get_cursor_width(crtc_helper);
 	drm->mode_config.cursor_height =
-		xlnx_crtc_helper_get_cursor_height(crtc);
+		xlnx_crtc_helper_get_cursor_height(crtc_helper);
 }
 
 static int xlnx_drm_open(struct drm_device *dev, struct drm_file *file)
@@ -246,7 +248,7 @@ static int xlnx_bind(struct device *dev)
 	drm_kms_helper_poll_init(drm);
 	platform_set_drvdata(master, xlnx_drm);
 
-	xlnx_crtc_helper_init(&xlnx_drm->crtc);
+	xlnx_crtc_helper_init(&xlnx_drm->crtc_helper);
 
 	ret = component_bind_all(&master->dev, drm);
 	if (ret)
@@ -254,14 +256,15 @@ static int xlnx_bind(struct device *dev)
 
 	xlnx_mode_config_init(drm);
 	drm_mode_config_reset(drm);
-	dma_set_mask(drm->dev, xlnx_crtc_helper_get_dma_mask(&xlnx_drm->crtc));
+	dma_set_mask(drm->dev,
+		     xlnx_crtc_helper_get_dma_mask(&xlnx_drm->crtc_helper));
 
-	format = xlnx_crtc_helper_get_format(&xlnx_drm->crtc);
+	format = xlnx_crtc_helper_get_format(&xlnx_drm->crtc_helper);
 	info = drm_format_info(format);
 	if (info && info->depth && info->cpp[0]) {
 		unsigned int align;
 
-		align = xlnx_crtc_helper_get_align(&xlnx_drm->crtc);
+		align = xlnx_crtc_helper_get_align(&xlnx_drm->crtc_helper);
 		xlnx_drm->fb = xlnx_fb_init(drm, info->cpp[0] * 8, 1, align);
 		if (IS_ERR(xlnx_drm->fb)) {
 			dev_err(&pdev->dev,
@@ -284,7 +287,7 @@ err_fb:
 		xlnx_fb_fini(xlnx_drm->fb);
 	component_unbind_all(drm->dev, drm);
 err_crtc:
-	xlnx_crtc_helper_fini(&xlnx_drm->crtc);
+	xlnx_crtc_helper_fini(&xlnx_drm->crtc_helper);
 err_xlnx_drm:
 	drm_mode_config_cleanup(drm);
 err_drm:
@@ -301,7 +304,7 @@ static void xlnx_unbind(struct device *dev)
 	if (xlnx_drm->fb)
 		xlnx_fb_fini(xlnx_drm->fb);
 	component_unbind_all(&xlnx_drm->master->dev, drm);
-	xlnx_crtc_helper_fini(&xlnx_drm->crtc);
+	xlnx_crtc_helper_fini(&xlnx_drm->crtc_helper);
 	drm_kms_helper_poll_fini(drm);
 	drm_mode_config_cleanup(drm);
 	drm_dev_unref(drm);
