@@ -45,7 +45,7 @@
 
 /**
  * struct xlnx_drm - Xilinx DRM private data
- * @drm: DRM core
+ * @drm: DRM device
  * @crtc_helper: Helper to access Xilinx CRTCs
  * @fb: DRM fb helper
  * @master: logical master device for pipeline
