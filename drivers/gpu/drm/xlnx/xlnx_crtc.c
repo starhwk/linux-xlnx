@@ -37,18 +37,6 @@
  * and calls the callbacks.
  */
 
-/**
- * struct xlnx_crtc_helper - Xilinx CRTC helper
- * @xlnx_crtcs: list of Xilinx CRTC devices
- * @lock: lock to protect @xlnx_crtcs
- * @drm: back pointer to DRM core
- */
-struct xlnx_crtc_helper {
-	struct list_head xlnx_crtcs;
-	struct mutex lock; /* lock for @xlnx_crtcs */
-	struct drm_device *drm;
-};
-
 unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
@@ -160,29 +148,19 @@ u32 xlnx_crtc_helper_get_cursor_height(struct xlnx_crtc_helper *helper)
 
 	return height;
 }
-struct xlnx_crtc_helper *xlnx_crtc_helper_init(struct drm_device *drm)
+
+void xlnx_crtc_helper_init(struct xlnx_crtc_helper *helper)
 {
-	struct xlnx_crtc_helper *helper;
-
-	helper = devm_kzalloc(drm->dev, sizeof(*helper), GFP_KERNEL);
-	if (!helper)
-		return ERR_PTR(-ENOMEM);
-
 	INIT_LIST_HEAD(&helper->xlnx_crtcs);
 	mutex_init(&helper->lock);
-	helper->drm = drm;
-
-	return helper;
 }
 
-void xlnx_crtc_helper_fini(struct drm_device *drm,
-			   struct xlnx_crtc_helper *helper)
+void xlnx_crtc_helper_fini(struct xlnx_crtc_helper *helper)
 {
 	if (WARN_ON(!list_empty(&helper->xlnx_crtcs)))
 		return;
 
 	mutex_destroy(&helper->lock);
-	devm_kfree(drm->dev, helper);
 }
 
 void xlnx_crtc_register(struct drm_device *drm, struct xlnx_crtc *crtc)

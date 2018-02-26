@@ -60,7 +60,7 @@ MODULE_PARM_DESC(fbdev_vres,
  */
 struct xlnx_drm {
 	struct drm_device *drm;
-	struct xlnx_crtc_helper *crtc;
+	struct xlnx_crtc_helper crtc;
 	struct drm_fb_helper *fb;
 	struct platform_device *master;
 	struct drm_atomic_state *suspend_state;
@@ -77,7 +77,7 @@ struct xlnx_crtc_helper *xlnx_get_crtc_helper(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
-	return xlnx_drm->crtc;
+	return &xlnx_drm->crtc;
 }
 
 /**
@@ -90,7 +90,7 @@ unsigned int xlnx_get_align(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
-	return xlnx_crtc_helper_get_align(xlnx_drm->crtc);
+	return xlnx_crtc_helper_get_align(&xlnx_drm->crtc);
 }
 
 /**
@@ -103,7 +103,7 @@ uint32_t xlnx_get_format(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
 
-	return xlnx_crtc_helper_get_format(xlnx_drm->crtc);
+	return xlnx_crtc_helper_get_format(&xlnx_drm->crtc);
 }
 
 static void xlnx_output_poll_changed(struct drm_device *drm)
@@ -124,7 +124,7 @@ static const struct drm_mode_config_funcs xlnx_mode_config_funcs = {
 static void xlnx_mode_config_init(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
-	struct xlnx_crtc_helper *crtc = xlnx_drm->crtc;
+	struct xlnx_crtc_helper *crtc = &xlnx_drm->crtc;
 
 	drm->mode_config.min_width = 0;
 	drm->mode_config.min_height = 0;
@@ -252,11 +252,7 @@ static int xlnx_bind(struct device *dev)
 	drm_kms_helper_poll_init(drm);
 	platform_set_drvdata(master, xlnx_drm);
 
-	xlnx_drm->crtc = xlnx_crtc_helper_init(drm);
-	if (IS_ERR(xlnx_drm->crtc)) {
-		ret = PTR_ERR(xlnx_drm->crtc);
-		goto err_xlnx_drm;
-	}
+	xlnx_crtc_helper_init(&xlnx_drm->crtc);
 
 	ret = component_bind_all(&master->dev, drm);
 	if (ret)
@@ -264,14 +260,14 @@ static int xlnx_bind(struct device *dev)
 
 	xlnx_mode_config_init(drm);
 	drm_mode_config_reset(drm);
-	dma_set_mask(drm->dev, xlnx_crtc_helper_get_dma_mask(xlnx_drm->crtc));
+	dma_set_mask(drm->dev, xlnx_crtc_helper_get_dma_mask(&xlnx_drm->crtc));
 
-	format = xlnx_crtc_helper_get_format(xlnx_drm->crtc);
+	format = xlnx_crtc_helper_get_format(&xlnx_drm->crtc);
 	info = drm_format_info(format);
 	if (info && info->depth && info->cpp[0]) {
 		unsigned int align;
 
-		align = xlnx_crtc_helper_get_align(xlnx_drm->crtc);
+		align = xlnx_crtc_helper_get_align(&xlnx_drm->crtc);
 		xlnx_drm->fb = xlnx_fb_init(drm, info->cpp[0] * 8, 1, align,
 					    xlnx_fbdev_vres);
 		if (IS_ERR(xlnx_drm->fb)) {
@@ -295,7 +291,7 @@ err_fb:
 		xlnx_fb_fini(xlnx_drm->fb);
 	component_unbind_all(drm->dev, drm);
 err_crtc:
-	xlnx_crtc_helper_fini(drm, xlnx_drm->crtc);
+	xlnx_crtc_helper_fini(&xlnx_drm->crtc);
 err_xlnx_drm:
 	drm_mode_config_cleanup(drm);
 err_drm:
@@ -312,7 +308,7 @@ static void xlnx_unbind(struct device *dev)
 	if (xlnx_drm->fb)
 		xlnx_fb_fini(xlnx_drm->fb);
 	component_unbind_all(&xlnx_drm->master->dev, drm);
-	xlnx_crtc_helper_fini(drm, xlnx_drm->crtc);
+	xlnx_crtc_helper_fini(&xlnx_drm->crtc);
 	drm_kms_helper_poll_fini(drm);
 	drm_mode_config_cleanup(drm);
 	drm_dev_unref(drm);

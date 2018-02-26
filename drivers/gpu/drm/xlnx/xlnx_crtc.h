@@ -57,7 +57,15 @@ struct xlnx_crtc {
  * Helper functions: used within Xlnx DRM
  */
 
-struct xlnx_crtc_helper;
+/**
+ * struct xlnx_crtc_helper - Xilinx CRTC helper
+ * @xlnx_crtcs: list of Xilinx CRTC devices
+ * @lock: lock to protect @xlnx_crtcs
+ */
+struct xlnx_crtc_helper {
+	struct list_head xlnx_crtcs;
+	struct mutex lock; /* lock for @xlnx_crtcs */
+};
 
 unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper);
 u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper);
@@ -67,9 +75,8 @@ u32 xlnx_crtc_helper_get_format(struct xlnx_crtc_helper *helper);
 u32 xlnx_crtc_helper_get_cursor_width(struct xlnx_crtc_helper *helper);
 u32 xlnx_crtc_helper_get_cursor_height(struct xlnx_crtc_helper *helper);
 
-struct xlnx_crtc_helper *xlnx_crtc_helper_init(struct drm_device *drm);
-void xlnx_crtc_helper_fini(struct drm_device *drm,
-			   struct xlnx_crtc_helper *helper);
+void xlnx_crtc_helper_init(struct xlnx_crtc_helper *helper);
+void xlnx_crtc_helper_fini(struct xlnx_crtc_helper *helper);
 
 /*
  * CRTC registration: used by other sub-driver modules
