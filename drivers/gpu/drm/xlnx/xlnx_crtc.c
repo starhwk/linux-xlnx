@@ -177,9 +177,6 @@ struct xlnx_crtc_helper *xlnx_crtc_helper_init(struct drm_device *drm)
 void xlnx_crtc_helper_fini(struct drm_device *drm,
 			   struct xlnx_crtc_helper *helper)
 {
-	if (WARN_ON(helper->drm != drm))
-		return;
-
 	if (WARN_ON(!list_empty(&helper->xlnx_crtcs)))
 		return;
 
