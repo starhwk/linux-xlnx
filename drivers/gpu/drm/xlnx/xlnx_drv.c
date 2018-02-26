@@ -43,11 +43,6 @@
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
 
-static uint xlnx_fbdev_vres = 2;
-module_param_named(fbdev_vres, xlnx_fbdev_vres, uint, 0444);
-MODULE_PARM_DESC(fbdev_vres,
-		 "fbdev virtual resolution multiplier for fb (default: 2)");
-
 /**
  * struct xlnx_drm - Xilinx DRM private data
  * @drm: DRM core
@@ -267,8 +262,7 @@ static int xlnx_bind(struct device *dev)
 		unsigned int align;
 
 		align = xlnx_crtc_helper_get_align(&xlnx_drm->crtc);
-		xlnx_drm->fb = xlnx_fb_init(drm, info->cpp[0] * 8, 1, align,
-					    xlnx_fbdev_vres);
+		xlnx_drm->fb = xlnx_fb_init(drm, info->cpp[0] * 8, 1, align);
 		if (IS_ERR(xlnx_drm->fb)) {
 			dev_err(&pdev->dev,
 				"failed to initialize drm fb\n");

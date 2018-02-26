@@ -37,7 +37,6 @@ struct xlnx_fbdev {
 	struct drm_fb_helper fb_helper;
 	struct drm_framebuffer *fb;
 	unsigned int align;
-	unsigned int vres_mult;
 };
 
 static inline struct xlnx_fbdev *to_fbdev(struct drm_fb_helper *fb_helper)
@@ -119,7 +118,6 @@ static int xlnx_fbdev_create(struct drm_fb_helper *fb_helper,
 	dev_dbg(drm->dev, "surface width(%d), height(%d) and bpp(%d)\n",
 		size->surface_width, size->surface_height, size->surface_bpp);
 
-	size->surface_height *= fbdev->vres_mult;
 	bytes_per_pixel = DIV_ROUND_UP(size->surface_bpp, 8);
 	bytes = ALIGN(size->surface_width * bytes_per_pixel, fbdev->align);
 	bytes *= size->surface_height;
@@ -163,8 +161,7 @@ static int xlnx_fbdev_create(struct drm_fb_helper *fb_helper,
 	}
 
 	drm_fb_helper_fill_fix(fbi, fb->pitches[0], fb->format->depth);
-	drm_fb_helper_fill_var(fbi, fb_helper, fb->width, fb->height);
-	fbi->var.yres = fb->height / fbdev->vres_mult;
+	drm_fb_helper_fill_var(fbi, fb_helper, size->fb_width, size->fb_height);
 
 	offset = fbi->var.xoffset * bytes_per_pixel;
 	offset += fbi->var.yoffset * fb->pitches[0];
@@ -197,7 +194,6 @@ static struct drm_fb_helper_funcs xlnx_fb_helper_funcs = {
  * @preferred_bpp: preferred bits per pixel for the device
  * @max_conn_count: maximum number of connectors
  * @align: alignment value for pitch
- * @vres_mult: multiplier for virtual resolution
  *
  * This function is based on drm_fbdev_cma_init().
  *
@@ -205,8 +201,7 @@ static struct drm_fb_helper_funcs xlnx_fb_helper_funcs = {
  */
 struct drm_fb_helper *
 xlnx_fb_init(struct drm_device *drm, int preferred_bpp,
-	     unsigned int max_conn_count, unsigned int align,
-	     unsigned int vres_mult)
+	     unsigned int max_conn_count, unsigned int align)
 {
 	struct xlnx_fbdev *fbdev;
 	struct drm_fb_helper *fb_helper;
@@ -216,7 +211,6 @@ xlnx_fb_init(struct drm_device *drm, int preferred_bpp,
 	if (!fbdev)
 		return ERR_PTR(-ENOMEM);
 
-	fbdev->vres_mult = vres_mult;
 	fbdev->align = align;
 	fb_helper = &fbdev->fb_helper;
 	drm_fb_helper_prepare(drm, fb_helper, &xlnx_fb_helper_funcs);

@@ -26,8 +26,7 @@ xlnx_fb_create(struct drm_device *drm, struct drm_file *file_priv,
 	       const struct drm_mode_fb_cmd2 *mode_cmd);
 struct drm_fb_helper *
 xlnx_fb_init(struct drm_device *drm, int preferred_bpp,
-	     unsigned int max_conn_count, unsigned int align,
-	     unsigned int vres_mult);
+	     unsigned int max_conn_count, unsigned int align);
 void xlnx_fb_fini(struct drm_fb_helper *fb_helper);
 
 #endif /* _XLNX_FB_H_ */
