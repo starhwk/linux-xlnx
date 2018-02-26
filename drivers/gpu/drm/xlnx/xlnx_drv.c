@@ -30,7 +30,6 @@
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
-#include <linux/reservation.h>
 
 #include "xlnx_bridge.h"
 #include "xlnx_crtc.h"
