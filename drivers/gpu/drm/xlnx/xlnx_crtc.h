@@ -19,10 +19,10 @@
 #ifndef _XLNX_CRTC_H_
 #define _XLNX_CRTC_H_
 
+struct xlnx_crtc;
+
 /**
- * struct xlnx_crtc - Xilinx CRTC device
- * @crtc: DRM CRTC device
- * @list: list node for Xilinx CRTC device list
+ * struct xlnx_crtc_ops - Xilinx CRTC operations
  * @get_align: Get the alignment requirement of CRTC device
  * @get_dma_mask: Get the dma mask of CRTC device
  * @get_max_width: Get the maximum supported width
@@ -31,9 +31,7 @@
  * @get_cursor_width: Get the cursor width
  * @get_cursor_height: Get the cursor height
  */
-struct xlnx_crtc {
-	struct drm_crtc crtc;
-	struct list_head list;
+struct xlnx_crtc_ops {
 	unsigned int (*get_align)(struct xlnx_crtc *crtc);
 	u64 (*get_dma_mask)(struct xlnx_crtc *crtc);
 	int (*get_max_width)(struct xlnx_crtc *crtc);
@@ -41,6 +39,18 @@ struct xlnx_crtc {
 	u32 (*get_format)(struct xlnx_crtc *crtc);
 	u32 (*get_cursor_width)(struct xlnx_crtc *crtc);
 	u32 (*get_cursor_height)(struct xlnx_crtc *crtc);
+};
+
+/**
+ * struct xlnx_crtc - Xilinx CRTC device
+ * @crtc: DRM CRTC device
+ * @list: list node for Xilinx CRTC device list
+ * @ops: Xilinx CRTC ops
+ */
+struct xlnx_crtc {
+	struct drm_crtc crtc;
+	struct list_head list;
+	const struct xlnx_crtc_ops *ops;
 };
 
 /*

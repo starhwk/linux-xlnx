@@ -377,6 +377,11 @@ static struct drm_crtc_funcs xlnx_pl_disp_crtc_funcs = {
 	.disable_vblank = xlnx_pl_disp_crtc_disable_vblank,
 };
 
+static const struct xlnx_crtc_ops xlnx_pl_disp_xlnx_crtc_ops = {
+	.get_format	= &xlnx_pl_disp_get_format,
+	.get_align	= &xlnx_pl_disp_get_align,
+};
+
 static int xlnx_pl_disp_bind(struct device *dev, struct device *master,
 			     void *data)
 {
@@ -410,9 +415,8 @@ static int xlnx_pl_disp_bind(struct device *dev, struct device *master,
 
 	drm_crtc_helper_add(&xlnx_pl_disp->xlnx_crtc.crtc,
 			    &xlnx_pl_disp_crtc_helper_funcs);
-	xlnx_pl_disp->xlnx_crtc.get_format = &xlnx_pl_disp_get_format;
-	xlnx_pl_disp->xlnx_crtc.get_align = &xlnx_pl_disp_get_align;
 	xlnx_pl_disp->drm = drm;
+	xlnx_pl_disp->xlnx_crtc.ops = &xlnx_pl_disp_xlnx_crtc_ops;
 	xlnx_crtc_register(xlnx_pl_disp->drm, &xlnx_pl_disp->xlnx_crtc);
 
 	return 0;

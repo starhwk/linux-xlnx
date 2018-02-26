@@ -2975,6 +2975,14 @@ static struct drm_crtc_funcs zynqmp_disp_crtc_funcs = {
 	.disable_vblank		= zynqmp_disp_crtc_disable_vblank,
 };
 
+static const struct xlnx_crtc_ops zynqmp_disp_xlnx_crtc_ops = {
+	.get_max_width	= &zynqmp_disp_get_max_width,
+	.get_max_height	= &zynqmp_disp_get_max_height,
+	.get_format	= &zynqmp_disp_get_format,
+	.get_align	= &zynqmp_disp_get_align,
+	.get_dma_mask	= &zynqmp_disp_get_dma_mask,
+};
+
 static void zynqmp_disp_create_crtc(struct zynqmp_disp *disp)
 {
 	struct drm_plane *plane = &disp->layers[ZYNQMP_DISP_LAYER_GFX].plane;
@@ -2991,11 +2999,7 @@ static void zynqmp_disp_create_crtc(struct zynqmp_disp *disp)
 	drm_object_attach_property(obj, disp->bg_c1_prop, 0);
 	drm_object_attach_property(obj, disp->bg_c2_prop, 0);
 
-	disp->xlnx_crtc.get_max_width = &zynqmp_disp_get_max_width;
-	disp->xlnx_crtc.get_max_height = &zynqmp_disp_get_max_height;
-	disp->xlnx_crtc.get_format = &zynqmp_disp_get_format;
-	disp->xlnx_crtc.get_align = &zynqmp_disp_get_align;
-	disp->xlnx_crtc.get_dma_mask = &zynqmp_disp_get_dma_mask;
+	disp->xlnx_crtc.ops = &zynqmp_disp_xlnx_crtc_ops;
 	xlnx_crtc_register(disp->drm, &disp->xlnx_crtc);
 }
 

@@ -56,8 +56,8 @@ unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_align)
-			align = ALIGN(align, crtc->get_align(crtc));
+		if (crtc->ops->get_align)
+			align = ALIGN(align, crtc->ops->get_align(crtc));
 	}
 	mutex_unlock(&helper->lock);
 
@@ -71,8 +71,8 @@ u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_dma_mask)
-			mask = min(mask, crtc->get_dma_mask(crtc));
+		if (crtc->ops->get_dma_mask)
+			mask = min(mask, crtc->ops->get_dma_mask(crtc));
 	}
 	mutex_unlock(&helper->lock);
 
@@ -86,8 +86,8 @@ int xlnx_crtc_helper_get_max_width(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_max_width)
-			width = min(width, crtc->get_max_width(crtc));
+		if (crtc->ops->get_max_width)
+			width = min(width, crtc->ops->get_max_width(crtc));
 	}
 	mutex_unlock(&helper->lock);
 
@@ -101,8 +101,8 @@ int xlnx_crtc_helper_get_max_height(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_max_height)
-			height = min(height, crtc->get_max_height(crtc));
+		if (crtc->ops->get_max_height)
+			height = min(height, crtc->ops->get_max_height(crtc));
 	}
 	mutex_unlock(&helper->lock);
 
@@ -116,8 +116,8 @@ u32 xlnx_crtc_helper_get_format(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_format) {
-			format = crtc->get_format(crtc);
+		if (crtc->ops->get_format) {
+			format = crtc->ops->get_format(crtc);
 			if (result && result != format) {
 				mutex_unlock(&helper->lock);
 				return 0;
@@ -137,8 +137,8 @@ u32 xlnx_crtc_helper_get_cursor_width(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_cursor_width)
-			width = min(width, crtc->get_cursor_width(crtc));
+		if (crtc->ops->get_cursor_width)
+			width = min(width, crtc->ops->get_cursor_width(crtc));
 	}
 	mutex_unlock(&helper->lock);
 
@@ -152,8 +152,9 @@ u32 xlnx_crtc_helper_get_cursor_height(struct xlnx_crtc_helper *helper)
 
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_cursor_height)
-			height = min(height, crtc->get_cursor_height(crtc));
+		if (crtc->ops->get_cursor_height)
+			height = min(height,
+				     crtc->ops->get_cursor_height(crtc));
 	}
 	mutex_unlock(&helper->lock);
 

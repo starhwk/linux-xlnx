@@ -2412,6 +2412,15 @@ static struct drm_crtc_helper_funcs xlnx_mix_crtc_helper_funcs = {
 	.atomic_begin	= xlnx_mix_crtc_atomic_begin,
 };
 
+static const struct xlnx_crtc_ops xlnx_mixer_xlnx_crtc_ops = {
+	.get_max_width		= &xlnx_mix_crtc_get_max_width,
+	.get_max_height		= &xlnx_mix_crtc_get_max_height,
+	.get_align		= &xlnx_mix_crtc_get_align,
+	.get_format		= &xlnx_mix_crtc_get_format,
+	.get_cursor_height	= &xlnx_mix_crtc_get_max_cursor_height,
+	.get_cursor_width	= &xlnx_mix_crtc_get_max_cursor_width,
+};
+
 /**
  * xlnx_mix_crtc_create - create crtc for mixer
  * @mixer: xilinx video mixer object
@@ -2455,12 +2464,7 @@ static int xlnx_mix_crtc_create(struct xlnx_mix *mixer)
 		goto err_pixel_clk;
 	}
 	drm_crtc_helper_add(&crtc->crtc, &xlnx_mix_crtc_helper_funcs);
-	crtc->get_max_width = &xlnx_mix_crtc_get_max_width;
-	crtc->get_max_height = &xlnx_mix_crtc_get_max_height;
-	crtc->get_align = &xlnx_mix_crtc_get_align;
-	crtc->get_format = &xlnx_mix_crtc_get_format;
-	crtc->get_cursor_height = &xlnx_mix_crtc_get_max_cursor_height;
-	crtc->get_cursor_width = &xlnx_mix_crtc_get_max_cursor_width;
+	crtc->ops = &xlnx_mixer_xlnx_crtc_ops;
 	xlnx_crtc_register(mixer->drm, crtc);
 
 	return 0;
