@@ -271,7 +271,7 @@ static const struct drm_plane_helper_funcs xlnx_pl_disp_plane_helper_funcs = {
 	.atomic_disable = xlnx_pl_disp_plane_atomic_disable,
 };
 
-static struct drm_plane_funcs xlnx_pl_disp_plane_funcs = {
+static const struct drm_plane_funcs xlnx_pl_disp_plane_funcs = {
 	.update_plane = drm_atomic_helper_update_plane,
 	.disable_plane = drm_atomic_helper_disable_plane,
 	.destroy = drm_plane_cleanup,
@@ -328,7 +328,7 @@ static int xlnx_pl_disp_crtc_atomic_check(struct drm_crtc *crtc,
 	return drm_atomic_add_affected_planes(state->state, crtc);
 }
 
-static struct drm_crtc_helper_funcs xlnx_pl_disp_crtc_helper_funcs = {
+static const struct drm_crtc_helper_funcs xlnx_pl_disp_crtc_helper_funcs = {
 	.atomic_enable = xlnx_pl_disp_crtc_atomic_enable,
 	.atomic_disable = xlnx_pl_disp_crtc_atomic_disable,
 	.atomic_check = xlnx_pl_disp_crtc_atomic_check,
@@ -366,7 +366,7 @@ static void xlnx_pl_disp_crtc_disable_vblank(struct drm_crtc *crtc)
 	xlnx_pl_disp->callback_param = NULL;
 }
 
-static struct drm_crtc_funcs xlnx_pl_disp_crtc_funcs = {
+static const struct drm_crtc_funcs xlnx_pl_disp_crtc_funcs = {
 	.destroy = xlnx_pl_disp_crtc_destroy,
 	.set_config = drm_atomic_helper_set_config,
 	.page_flip = drm_atomic_helper_page_flip,
