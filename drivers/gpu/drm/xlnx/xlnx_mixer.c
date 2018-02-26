@@ -2336,7 +2336,7 @@ xlnx_mix_disp_crtc_atomic_get_property(struct drm_crtc *crtc,
 	return 0;
 }
 
-static struct drm_crtc_funcs xlnx_mix_crtc_funcs = {
+static const struct drm_crtc_funcs xlnx_mix_crtc_funcs = {
 	.destroy		= xlnx_mix_crtc_destroy,
 	.set_config		= drm_atomic_helper_set_config,
 	.page_flip		= drm_atomic_helper_page_flip,
@@ -2404,7 +2404,7 @@ xlnx_mix_crtc_atomic_begin(struct drm_crtc *crtc,
 	}
 }
 
-static struct drm_crtc_helper_funcs xlnx_mix_crtc_helper_funcs = {
+static const struct drm_crtc_helper_funcs xlnx_mix_crtc_helper_funcs = {
 	.atomic_enable	= xlnx_mix_crtc_atomic_enable,
 	.atomic_disable	= xlnx_mix_crtc_atomic_disable,
 	.mode_set_nofb	= xlnx_mix_crtc_mode_set_nofb,
