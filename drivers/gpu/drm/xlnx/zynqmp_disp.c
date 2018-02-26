@@ -2885,7 +2885,7 @@ zynqmp_disp_crtc_atomic_begin(struct drm_crtc *crtc,
 	spin_unlock_irq(&crtc->dev->event_lock);
 }
 
-static struct drm_crtc_helper_funcs zynqmp_disp_crtc_helper_funcs = {
+static const struct drm_crtc_helper_funcs zynqmp_disp_crtc_helper_funcs = {
 	.atomic_enable	= zynqmp_disp_crtc_atomic_enable,
 	.atomic_disable	= zynqmp_disp_crtc_atomic_disable,
 	.atomic_check	= zynqmp_disp_crtc_atomic_check,
@@ -2962,7 +2962,7 @@ zynqmp_disp_crtc_atomic_get_property(struct drm_crtc *crtc,
 	return 0;
 }
 
-static struct drm_crtc_funcs zynqmp_disp_crtc_funcs = {
+static const struct drm_crtc_funcs zynqmp_disp_crtc_funcs = {
 	.destroy		= zynqmp_disp_crtc_destroy,
 	.set_config		= drm_atomic_helper_set_config,
 	.page_flip		= drm_atomic_helper_page_flip,
