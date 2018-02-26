@@ -29,12 +29,12 @@
  *
  * The Xilinx CRTC layer is to enable the custom interface to CRTC drivers.
  * The interface is used by Xilinx DRM driver where it needs CRTC
- * functionailty. CRTC drivers should attach the desired callbacks
- * to struct xlnx_crtc and register the xlnx_crtc with correcsponding
+ * functionality. CRTC drivers should attach the desired callbacks
+ * to struct xlnx_crtc and register the xlnx_crtc with corresponding
  * drm_device. It's highly recommended CRTC drivers register all callbacks
  * even though many of them are optional.
  * The CRTC helper simply walks through the registered CRTC device,
- * and call the callbacks.
+ * and calls the callbacks.
  */
 
 /**
