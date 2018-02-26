@@ -53,6 +53,11 @@ struct xlnx_crtc {
 	const struct xlnx_crtc_ops *ops;
 };
 
+static inline struct xlnx_crtc *to_xlnx_crtc(struct drm_crtc *crtc)
+{
+	return container_of(crtc, struct xlnx_crtc, crtc);
+}
+
 /*
  * Helper functions: used within Xlnx DRM
  */
@@ -81,11 +86,6 @@ void xlnx_crtc_helper_fini(struct xlnx_crtc_helper *helper);
 /*
  * CRTC registration: used by other sub-driver modules
  */
-
-static inline struct xlnx_crtc *to_xlnx_crtc(struct drm_crtc *crtc)
-{
-	return container_of(crtc, struct xlnx_crtc, crtc);
-}
 
 void xlnx_crtc_register(struct drm_device *drm, struct xlnx_crtc *crtc);
 void xlnx_crtc_unregister(struct drm_device *drm, struct xlnx_crtc *crtc);
