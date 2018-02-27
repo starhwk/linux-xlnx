@@ -299,9 +299,12 @@ static const struct component_master_ops xlnx_master_ops = {
 	.unbind	= xlnx_unbind,
 };
 
-static int xlnx_of_component_probe(struct device *master_dev,
-				   int (*compare_of)(struct device *, void *),
-				   const struct component_master_ops *m_ops)
+static int xlnx_compare_of(struct device *dev, void *data)
+{
+	return dev->of_node == data;
+}
+
+static int xlnx_probe(struct device *master_dev)
 {
 	struct device *dev = master_dev->parent;
 	struct device_node *ep, *port, *remote, *parent;
@@ -311,7 +314,7 @@ static int xlnx_of_component_probe(struct device *master_dev,
 	if (!dev->of_node)
 		return -EINVAL;
 
-	component_match_add(master_dev, &match, compare_of, dev->of_node);
+	component_match_add(master_dev, &match, xlnx_compare_of, dev->of_node);
 
 	for (i = 0; ; i++) {
 		port = of_parse_phandle(dev->of_node, "ports", i);
@@ -329,7 +332,8 @@ static int xlnx_of_component_probe(struct device *master_dev,
 			continue;
 		}
 
-		component_match_add(master_dev, &match, compare_of, parent);
+		component_match_add(master_dev, &match, xlnx_compare_of,
+				    parent);
 		of_node_put(parent);
 		of_node_put(port);
 	}
@@ -354,7 +358,7 @@ static int xlnx_of_component_probe(struct device *master_dev,
 				of_node_put(remote);
 				continue;
 			}
-			component_match_add(master_dev, &match, compare_of,
+			component_match_add(master_dev, &match, xlnx_compare_of,
 					    remote);
 			of_node_put(remote);
 		}
@@ -370,18 +374,8 @@ static int xlnx_of_component_probe(struct device *master_dev,
 		of_node_put(port);
 	}
 
-	return component_master_add_with_match(master_dev, m_ops, match);
-}
-
-static int xlnx_compare_of(struct device *dev, void *data)
-{
-	return dev->of_node == data;
-}
-
-static int xlnx_probe(struct device *dev)
-{
-	return xlnx_of_component_probe(dev, xlnx_compare_of,
-				       &xlnx_master_ops);
+	return component_master_add_with_match(master_dev, &xlnx_master_ops,
+					       match);
 }
 
 static int xlnx_remove(struct device *dev)
