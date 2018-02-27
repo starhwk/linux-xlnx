@@ -49,46 +49,12 @@ static const struct drm_framebuffer_funcs xlnx_fb_funcs = {
 	.create_handle	= drm_gem_fb_create_handle,
 };
 
-static int
-xlnx_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
-{
-	struct drm_fb_helper *fb_helper = info->par;
-	unsigned int i;
-	int ret = 0;
-
-	switch (cmd) {
-	case FBIO_WAITFORVSYNC:
-		for (i = 0; i < fb_helper->crtc_count; i++) {
-			struct drm_mode_set *mode_set;
-			struct drm_crtc *crtc;
-
-			mode_set = &fb_helper->crtc_info[i].mode_set;
-			crtc = mode_set->crtc;
-			ret = drm_crtc_vblank_get(crtc);
-			if (!ret) {
-				drm_crtc_wait_one_vblank(crtc);
-				drm_crtc_vblank_put(crtc);
-			}
-		}
-		return ret;
-	default:
-		return -ENOTTY;
-	}
-
-	return 0;
-}
-
 static struct fb_ops xlnx_fbdev_ops = {
 	.owner		= THIS_MODULE,
 	.fb_fillrect	= sys_fillrect,
 	.fb_copyarea	= sys_copyarea,
 	.fb_imageblit	= sys_imageblit,
-	.fb_check_var	= drm_fb_helper_check_var,
-	.fb_set_par	= drm_fb_helper_set_par,
-	.fb_blank	= drm_fb_helper_blank,
-	.fb_pan_display	= drm_fb_helper_pan_display,
-	.fb_setcmap	= drm_fb_helper_setcmap,
-	.fb_ioctl	= xlnx_fb_ioctl,
+	DRM_FB_HELPER_DEFAULT_OPS,
 };
 
 /**
