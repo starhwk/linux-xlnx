@@ -37,11 +37,9 @@
 int xlnx_gem_cma_dumb_create(struct drm_file *file_priv, struct drm_device *drm,
 			     struct drm_mode_create_dumb *args)
 {
-	int pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
-	unsigned int align = xlnx_get_align(drm);
+	unsigned int pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
 
-	if (!args->pitch || !IS_ALIGNED(args->pitch, align))
-		args->pitch = ALIGN(pitch, align);
+	args->pitch = ALIGN(pitch, xlnx_get_align(drm));
 
 	return drm_gem_cma_dumb_create_internal(file_priv, drm, args);
 }
