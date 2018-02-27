@@ -22,7 +22,7 @@
 struct zynqmp_dpsub {
 	struct zynqmp_dp *dp;
 	struct zynqmp_disp *disp;
-	struct platform_device *master;
+	struct device *master;
 };
 
 #endif /* _ZYNQMP_DPSUB_H_ */

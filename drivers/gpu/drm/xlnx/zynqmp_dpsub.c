@@ -93,7 +93,7 @@ static int zynqmp_dpsub_probe(struct platform_device *pdev)
 		goto err_component;
 	}
 
-	dpsub->master = xlnx_drm_pipeline_init(pdev);
+	dpsub->master = xlnx_drm_pipeline_init(&pdev->dev);
 	if (IS_ERR(dpsub->master)) {
 		dev_err(&pdev->dev, "failed to initialize the drm pipeline\n");
 		goto err_populate;

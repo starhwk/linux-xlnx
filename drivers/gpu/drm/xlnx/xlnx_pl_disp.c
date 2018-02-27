@@ -63,7 +63,7 @@ struct xlnx_dma_chan {
  */
 struct xlnx_pl_disp {
 	struct device *dev;
-	struct platform_device *master;
+	struct device *master;
 	struct xlnx_crtc xlnx_crtc;
 	struct drm_plane plane;
 	struct xlnx_dma_chan *chan;
@@ -475,7 +475,7 @@ static int xlnx_pl_disp_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_dma;
 
-	xlnx_pl_disp->master = xlnx_drm_pipeline_init(pdev);
+	xlnx_pl_disp->master = xlnx_drm_pipeline_init(&pdev->dev);
 	if (IS_ERR(xlnx_pl_disp->master)) {
 		ret = PTR_ERR(xlnx_pl_disp->master);
 		dev_err(dev, "failed to initialize the drm pipeline\n");

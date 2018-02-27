@@ -29,7 +29,6 @@
 #include <linux/dma-buf.h>
 #include <linux/module.h>
 #include <linux/of_graph.h>
-#include <linux/platform_device.h>
 
 #include "xlnx_bridge.h"
 #include "xlnx_crtc.h"
@@ -56,7 +55,7 @@ struct xlnx_drm {
 	struct drm_device *drm;
 	struct xlnx_crtc_helper crtc_helper;
 	struct drm_fb_helper *fb;
-	struct platform_device *master;
+	struct device *master;
 	struct drm_atomic_state *suspend_state;
 	bool is_master;
 };
@@ -199,17 +198,15 @@ static struct drm_driver xlnx_drm_driver = {
 	.minor				= DRIVER_MINOR,
 };
 
-static int xlnx_bind(struct device *dev)
+static int xlnx_bind(struct device *master)
 {
 	struct xlnx_drm *xlnx_drm;
 	struct drm_device *drm;
 	const struct drm_format_info *info;
-	struct platform_device *master = to_platform_device(dev);
-	struct platform_device *pdev = to_platform_device(dev->parent);
 	int ret;
 	u32 format;
 
-	drm = drm_dev_alloc(&xlnx_drm_driver, &pdev->dev);
+	drm = drm_dev_alloc(&xlnx_drm_driver, master->parent);
 	if (IS_ERR(drm))
 		return PTR_ERR(drm);
 
@@ -224,7 +221,7 @@ static int xlnx_bind(struct device *dev)
 
 	ret = drm_vblank_init(drm, 1);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to initialize vblank\n");
+		dev_err(master->parent, "failed to initialize vblank\n");
 		goto err_xlnx_drm;
 	}
 
@@ -233,11 +230,11 @@ static int xlnx_bind(struct device *dev)
 	xlnx_drm->drm = drm;
 	xlnx_drm->master = master;
 	drm_kms_helper_poll_init(drm);
-	platform_set_drvdata(master, xlnx_drm);
+	dev_set_drvdata(master, xlnx_drm);
 
 	xlnx_crtc_helper_init(&xlnx_drm->crtc_helper);
 
-	ret = component_bind_all(&master->dev, drm);
+	ret = component_bind_all(master, drm);
 	if (ret)
 		goto err_crtc;
 
@@ -254,13 +251,13 @@ static int xlnx_bind(struct device *dev)
 		align = xlnx_crtc_helper_get_align(&xlnx_drm->crtc_helper);
 		xlnx_drm->fb = xlnx_fb_init(drm, info->cpp[0] * 8, 1, align);
 		if (IS_ERR(xlnx_drm->fb)) {
-			dev_err(&pdev->dev,
+			dev_err(master->parent,
 				"failed to initialize drm fb\n");
 			xlnx_drm->fb = NULL;
 		}
 	} else {
 		/* fbdev emulation is optional */
-		dev_info(&pdev->dev, "fbdev is not initialized\n");
+		dev_info(master->parent, "fbdev is not initialized\n");
 	}
 
 	ret = drm_dev_register(drm, 0);
@@ -282,15 +279,15 @@ err_drm:
 	return ret;
 }
 
-static void xlnx_unbind(struct device *dev)
+static void xlnx_unbind(struct device *master)
 {
-	struct xlnx_drm *xlnx_drm = dev_get_drvdata(dev);
+	struct xlnx_drm *xlnx_drm = dev_get_drvdata(master);
 	struct drm_device *drm = xlnx_drm->drm;
 
 	drm_dev_unregister(drm);
 	if (xlnx_drm->fb)
 		xlnx_fb_fini(xlnx_drm->fb);
-	component_unbind_all(&xlnx_drm->master->dev, drm);
+	component_unbind_all(master, drm);
 	xlnx_crtc_helper_fini(&xlnx_drm->crtc_helper);
 	drm_kms_helper_poll_fini(drm);
 	drm_mode_config_cleanup(drm);
@@ -381,21 +378,21 @@ static int xlnx_compare_of(struct device *dev, void *data)
 	return dev->of_node == data;
 }
 
-static int xlnx_platform_probe(struct platform_device *pdev)
+static int xlnx_probe(struct device *dev)
 {
-	return xlnx_of_component_probe(&pdev->dev, xlnx_compare_of,
+	return xlnx_of_component_probe(dev, xlnx_compare_of,
 				       &xlnx_master_ops);
 }
 
-static int xlnx_platform_remove(struct platform_device *pdev)
+static int xlnx_remove(struct device *dev)
 {
-	component_master_del(&pdev->dev, &xlnx_master_ops);
+	component_master_del(dev, &xlnx_master_ops);
 	return 0;
 }
 
-static void xlnx_platform_shutdown(struct platform_device *pdev)
+static void xlnx_shutdown(struct device *dev)
 {
-	component_master_del(&pdev->dev, &xlnx_master_ops);
+	component_master_del(dev, &xlnx_master_ops);
 }
 
 static int __maybe_unused xlnx_pm_suspend(struct device *dev)
@@ -429,14 +426,24 @@ static const struct dev_pm_ops xlnx_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(xlnx_pm_suspend, xlnx_pm_resume)
 };
 
-static struct platform_driver xlnx_driver = {
-	.probe			= xlnx_platform_probe,
-	.remove			= xlnx_platform_remove,
-	.shutdown		= xlnx_platform_shutdown,
-	.driver			= {
-		.name		= "xlnx-drm",
-		.pm		= &xlnx_pm_ops,
-	},
+static int xlnx_drv_bus_match(struct device *dev, struct device_driver *drv)
+{
+	return !strncmp(dev_name(dev), drv->name, strlen(drv->name));
+}
+
+struct bus_type xlnx_driver_bus_type = {
+	.name   = "xlnx-drm-bus",
+	.match  = &xlnx_drv_bus_match,
+};
+
+static struct device_driver xlnx_driver = {
+	.probe		= xlnx_probe,
+	.remove		= xlnx_remove,
+	.shutdown	= xlnx_shutdown,
+	.name		= "xlnx-drm",
+	.pm		= &xlnx_pm_ops,
+	.bus		= &xlnx_driver_bus_type,
+	.owner		= THIS_MODULE,
 };
 
 /* bitmap for master id */
@@ -444,42 +451,47 @@ static u32 xlnx_master_ids = GENMASK(31, 0);
 
 /**
  * xlnx_drm_pipeline_init - Initialize the drm pipeline for the device
- * @pdev: The platform device to initialize the drm pipeline device
+ * @dev: The device to initialize the drm pipeline device
  *
  * This function initializes the drm pipeline device, struct drm_device,
- * on @pdev by creating a logical master platform device. The logical platform
- * device acts as a master device to bind slave devices and represents
- * the entire pipeline.
+ * on @dev by creating a logical master device. The logical device acts
+ * as a master device to bind slave devices and represents the entire
+ * pipeline.
  * The logical master uses the port bindings of the calling device to
  * figure out the pipeline topology.
  *
- * Return: the logical master platform device if the drm device is initialized
- * on @pdev. Error code otherwise.
+ * Return: the logical master device if the drm device is initialized
+ * on @dev. Error code otherwise.
  */
-struct platform_device *xlnx_drm_pipeline_init(struct platform_device *pdev)
+struct device *xlnx_drm_pipeline_init(struct device *dev)
 {
-	struct platform_device *master;
+	struct device *master;
 	int id, ret;
 
 	id = ffs(xlnx_master_ids);
 	if (!id)
 		return ERR_PTR(-ENOSPC);
 
-	master = platform_device_alloc("xlnx-drm", id - 1);
+	master = kzalloc(sizeof(*master), GFP_KERNEL);
 	if (!master)
 		return ERR_PTR(-ENOMEM);
+	device_initialize(master);
+	master->parent = dev;
+	master->bus = &xlnx_driver_bus_type;
 
-	master->dev.parent = &pdev->dev;
-	ret = platform_device_add(master);
+	ret = dev_set_name(master, "xlnx-drm.%d", id);
 	if (ret)
-		goto err_out;
+		goto err_kfree;
 
-	WARN_ON(master->id != id - 1);
+	ret = device_add(master);
+	if (ret)
+		goto err_kfree;
+
 	xlnx_master_ids &= ~BIT(master->id);
 	return master;
 
-err_out:
-	platform_device_unregister(master);
+err_kfree:
+	kfree(master);
 	return ERR_PTR(ret);
 }
 EXPORT_SYMBOL_GPL(xlnx_drm_pipeline_init);
@@ -490,23 +502,36 @@ EXPORT_SYMBOL_GPL(xlnx_drm_pipeline_init);
  *
  * Release the logical pipeline device returned by xlnx_drm_pipeline_init().
  */
-void xlnx_drm_pipeline_exit(struct platform_device *master)
+void xlnx_drm_pipeline_exit(struct device *master)
 {
 	xlnx_master_ids |= BIT(master->id);
-	platform_device_unregister(master);
+	device_unregister(master);
+	kfree(master);
 }
 EXPORT_SYMBOL_GPL(xlnx_drm_pipeline_exit);
 
 static int __init xlnx_drm_drv_init(void)
 {
+	int ret;
+
 	xlnx_bridge_helper_init();
-	platform_driver_register(&xlnx_driver);
+	ret = bus_register(&xlnx_driver_bus_type);
+	if (ret)
+		return ret;
+
+	ret = driver_register(&xlnx_driver);
+	if (ret) {
+		bus_unregister(&xlnx_driver_bus_type);
+		return ret;
+	}
+
 	return 0;
 }
 
 static void __exit xlnx_drm_drv_exit(void)
 {
-	platform_driver_unregister(&xlnx_driver);
+	bus_unregister(&xlnx_driver_bus_type);
+	driver_unregister(&xlnx_driver);
 	xlnx_bridge_helper_fini();
 }
 

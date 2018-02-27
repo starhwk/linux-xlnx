@@ -303,7 +303,7 @@ struct xlnx_mix_hw {
  */
 struct xlnx_mix {
 	struct xlnx_mix_hw mixer_hw;
-	struct platform_device *master;
+	struct device *master;
 	struct xlnx_crtc crtc;
 	struct xlnx_mix_plane *drm_primary_layer;
 	struct xlnx_mix_plane *hw_master_layer;
@@ -2577,7 +2577,7 @@ static int xlnx_mix_probe(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
-	mixer->master = xlnx_drm_pipeline_init(pdev);
+	mixer->master = xlnx_drm_pipeline_init(&pdev->dev);
 	if (IS_ERR(mixer->master)) {
 		dev_err(&pdev->dev, "Failed to initialize the drm pipeline\n");
 		goto err_component;
