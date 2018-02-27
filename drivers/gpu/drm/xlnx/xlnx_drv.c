@@ -321,21 +321,22 @@ static int xlnx_probe(struct device *master_dev)
 		if (!port)
 			break;
 
-		parent = port->parent;
-		if (!of_node_cmp(parent->name, "ports"))
-			parent = parent->parent;
-		parent = of_node_get(parent);
+		parent = of_get_parent(port);
+		of_node_put(port);
+		if (!of_node_cmp(parent->name, "ports")) {
+			port = parent;
+			parent = of_get_parent(parent);
+			of_node_put(port);
+		}
 
 		if (!of_device_is_available(parent)) {
 			of_node_put(parent);
-			of_node_put(port);
 			continue;
 		}
 
 		component_match_add(master_dev, &match, xlnx_compare_of,
 				    parent);
 		of_node_put(parent);
-		of_node_put(port);
 	}
 
 	parent = dev->of_node;
@@ -368,10 +369,13 @@ static int xlnx_probe(struct device *master_dev)
 		if (!port)
 			break;
 
-		parent = port->parent;
-		if (!of_node_cmp(parent->name, "ports"))
-			parent = parent->parent;
+		parent = of_get_parent(port);
 		of_node_put(port);
+		if (!of_node_cmp(parent->name, "ports")) {
+			port = parent;
+			parent = of_get_parent(parent);
+			of_node_put(port);
+		}
 	}
 
 	return component_master_add_with_match(master_dev, &xlnx_master_ops,
