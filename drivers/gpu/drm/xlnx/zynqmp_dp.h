@@ -19,8 +19,10 @@
 #ifndef _ZYNQMP_DP_H_
 #define _ZYNQMP_DP_H_
 
-struct zynqmp_dp;
+struct device;
 struct drm_display_mode;
+struct platform_device;
+struct zynqmp_dp;
 
 const int zynqmp_dp_set_color(struct zynqmp_dp *dp, const char *color);
 void zynqmp_dp_enable_vblank(struct zynqmp_dp *dp);

@@ -19,6 +19,10 @@
 #ifndef _ZYNQMP_DPSUB_H_
 #define _ZYNQMP_DPSUB_H_
 
+struct device;
+struct zynqmp_dp;
+struct zynqmp_disp;
+
 struct zynqmp_dpsub {
 	struct zynqmp_dp *dp;
 	struct zynqmp_disp *disp;

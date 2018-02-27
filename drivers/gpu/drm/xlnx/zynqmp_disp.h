@@ -19,6 +19,8 @@
 #ifndef _ZYNQMP_DISP_H_
 #define _ZYNQMP_DISP_H_
 
+struct device;
+struct platform_device;
 struct zynqmp_disp;
 
 void zynqmp_disp_handle_vblank(struct zynqmp_disp *disp);
