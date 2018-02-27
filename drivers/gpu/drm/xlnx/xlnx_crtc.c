@@ -18,8 +18,6 @@
 
 #include <drm/drmP.h>
 
-#include <linux/list.h>
-
 #include "xlnx_crtc.h"
 #include "xlnx_drv.h"
 

@@ -19,6 +19,7 @@
 #ifndef _XLNX_DRV_H_
 #define _XLNX_DRV_H_
 
+struct device;
 struct drm_device;
 struct xlnx_crtc_helper;
 

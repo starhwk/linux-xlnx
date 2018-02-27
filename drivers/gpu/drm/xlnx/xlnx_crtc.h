@@ -19,6 +19,11 @@
 #ifndef _XLNX_CRTC_H_
 #define _XLNX_CRTC_H_
 
+#include <drm/drm_crtc.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
+
+struct drm_device;
 struct xlnx_crtc;
 
 /**
