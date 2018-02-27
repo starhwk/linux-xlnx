@@ -44,7 +44,7 @@ static inline struct xlnx_fbdev *to_fbdev(struct drm_fb_helper *fb_helper)
 	return container_of(fb_helper, struct xlnx_fbdev, fb_helper);
 }
 
-static struct drm_framebuffer_funcs xlnx_fb_funcs = {
+static const struct drm_framebuffer_funcs xlnx_fb_funcs = {
 	.destroy	= drm_gem_fb_destroy,
 	.create_handle	= drm_gem_fb_create_handle,
 };
@@ -184,7 +184,7 @@ err_drm_gem_cma_free_object:
 	return ret;
 }
 
-static struct drm_fb_helper_funcs xlnx_fb_helper_funcs = {
+static const struct drm_fb_helper_funcs xlnx_fb_helper_funcs = {
 	.fb_probe = xlnx_fbdev_create,
 };
 
