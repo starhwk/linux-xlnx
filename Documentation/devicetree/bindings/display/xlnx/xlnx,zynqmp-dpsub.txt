@@ -1,6 +1,21 @@
 Xilinx ZynqMP DisplayPort subsystem
 -----------------------------------
 
+The DisplayPort subsystem of Xilinx ZynqMP (Zynq UltraScale+ MPSoC) implements
+the display and audio pipelines based on the DisplayPort v1.2 standard.
+The subsystem includes multiple functional blocks as below:
+
+	buffer manager <-> blender & mixer <-> DP Tx
+
+The buffer manager interacts with external interface such as DMA engines or
+live streams. The blender and mixer blends the incoming video / audio streams
+into single stream. The DP Tx converts and transmits the stream into DisplayPort
+protocol through external phy. The subsystem supports 2 video and 2 audio
+streams, and various pixel formats / depths up to 4K@30 resolution.
+
+Please refer to "Zynq UltraScale+ Device Technical Reference Manual" [UG1085]
+for more details.
+
 Required properties:
 
 - compatible: Must be "xlnx,zynqmp-dpsub-1.7".
@@ -80,3 +95,5 @@ Example:
 		       <&xlnx_dpdma 3>;
 	};
 };
+
+[UG1085] https://www.xilinx.com/support/documentation/user_guides/ug1085-zynq-ultrascale-trm.pdf
