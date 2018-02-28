@@ -10,25 +10,22 @@
 #ifndef _XLNX_BRIDGE_H_
 #define _XLNX_BRIDGE_H_
 
+#include <linux/list.h>
+
+struct device_node;
+struct xlnx_bridge;
 struct xlnx_bridge_debugfs_file;
 
 /**
- * struct xlnx_bridge - Xilinx bridge device
- * @list: list node for Xilinx bridge device list
- * @of_node: OF node for the bridge
- * @owned: flag if the bridge is owned
+ * struct xlnx_bridge_ops - Xilinx bridge ops
  * @enable: callback to enable the bridge
  * @disable: callback to disable the bridge
  * @set_input: callback to set the input
  * @get_input_fmts: callback to get supported input formats.
  * @set_output: callback to set the output
  * @get_output_fmts: callback to get supported output formats.
- * @debugfs_file: for debugfs support
  */
-struct xlnx_bridge {
-	struct list_head list;
-	struct device_node *of_node;
-	bool owned;
+struct xlnx_bridge_ops {
 	int (*enable)(struct xlnx_bridge *bridge);
 	void (*disable)(struct xlnx_bridge *bridge);
 	int (*set_input)(struct xlnx_bridge *bridge,
@@ -39,6 +36,21 @@ struct xlnx_bridge {
 			  u32 width, u32 height, u32 bus_fmt);
 	int (*get_output_fmts)(struct xlnx_bridge *bridge,
 			       const u32 **fmts, u32 *count);
+};
+
+/**
+ * struct xlnx_bridge - Xilinx bridge device
+ * @list: list node for Xilinx bridge device list
+ * @of_node: OF node for the bridge
+ * @owned: flag if the bridge is owned
+ * @ops: Xilinx bridge ops
+ * @debugfs_file: for debugfs support
+ */
+struct xlnx_bridge {
+	struct list_head list;
+	struct device_node *of_node;
+	bool owned;
+	const struct xlnx_bridge_ops *ops;
 	struct xlnx_bridge_debugfs_file *debugfs_file;
 };
 

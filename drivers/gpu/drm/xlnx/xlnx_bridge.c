@@ -64,8 +64,8 @@ int xlnx_bridge_enable(struct xlnx_bridge *bridge)
 	if (helper.error)
 		return -EFAULT;
 
-	if (bridge->enable)
-		return bridge->enable(bridge);
+	if (bridge->ops->enable)
+		return bridge->ops->enable(bridge);
 
 	return -ENOENT;
 }
@@ -85,8 +85,8 @@ void xlnx_bridge_disable(struct xlnx_bridge *bridge)
 	if (helper.error)
 		return;
 
-	if (bridge->disable)
-		bridge->disable(bridge);
+	if (bridge->ops->disable)
+		bridge->ops->disable(bridge);
 }
 EXPORT_SYMBOL(xlnx_bridge_disable);
 
@@ -111,8 +111,8 @@ int xlnx_bridge_set_input(struct xlnx_bridge *bridge,
 	if (helper.error)
 		return -EFAULT;
 
-	if (bridge->set_input)
-		return bridge->set_input(bridge, width, height, bus_fmt);
+	if (bridge->ops->set_input)
+		return bridge->ops->set_input(bridge, width, height, bus_fmt);
 
 	return -ENOENT;
 }
@@ -138,8 +138,8 @@ int xlnx_bridge_get_input_fmts(struct xlnx_bridge *bridge,
 	if (helper.error)
 		return -EFAULT;
 
-	if (bridge->get_input_fmts)
-		return bridge->get_input_fmts(bridge, fmts, count);
+	if (bridge->ops->get_input_fmts)
+		return bridge->ops->get_input_fmts(bridge, fmts, count);
 
 	return -ENOENT;
 }
@@ -166,8 +166,8 @@ int xlnx_bridge_set_output(struct xlnx_bridge *bridge,
 	if (helper.error)
 		return -EFAULT;
 
-	if (bridge->set_output)
-		return bridge->set_output(bridge, width, height, bus_fmt);
+	if (bridge->ops->set_output)
+		return bridge->ops->set_output(bridge, width, height, bus_fmt);
 
 	return -ENOENT;
 }
@@ -193,8 +193,8 @@ int xlnx_bridge_get_output_fmts(struct xlnx_bridge *bridge,
 	if (helper.error)
 		return -EFAULT;
 
-	if (bridge->get_output_fmts)
-		return bridge->get_output_fmts(bridge, fmts, count);
+	if (bridge->ops->get_output_fmts)
+		return bridge->ops->get_output_fmts(bridge, fmts, count);
 
 	return -ENOENT;
 }

@@ -1605,6 +1605,15 @@ static int xilinx_scaler_bridge_get_output_fmts(struct xlnx_bridge *bridge,
 	return 0;
 }
 
+static const struct xlnx_bridge_ops xilinx_scaler_xlnx_bridge_ops = {
+	.enable			= &xilinx_scaler_bridge_enable,
+	.disable		= &xilinx_scaler_bridge_disable,
+	.set_input		= &xilinx_scaler_bridge_set_input,
+	.get_input_fmts		= &xilinx_scaler_bridge_get_input_fmts,
+	.set_output		= &xilinx_scaler_bridge_set_output,
+	.get_output_fmts	= &xilinx_scaler_bridge_get_output_fmts,
+};
+
 static int xilinx_scaler_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1637,12 +1646,7 @@ static int xilinx_scaler_probe(struct platform_device *pdev)
 	gpiod_set_value_cansleep(scaler->rst_gpio, XSCALER_RESET_DEASSERT);
 	xilinx_scaler_reset(scaler);
 
-	scaler->bridge.enable = &xilinx_scaler_bridge_enable;
-	scaler->bridge.disable = &xilinx_scaler_bridge_disable;
-	scaler->bridge.set_input = &xilinx_scaler_bridge_set_input;
-	scaler->bridge.get_input_fmts = &xilinx_scaler_bridge_get_input_fmts;
-	scaler->bridge.set_output = &xilinx_scaler_bridge_set_output;
-	scaler->bridge.get_output_fmts = &xilinx_scaler_bridge_get_output_fmts;
+	scaler->bridge.ops = &xilinx_scaler_xlnx_bridge_ops;
 	scaler->bridge.of_node = dev->of_node;
 
 	ret = xlnx_bridge_register(&scaler->bridge);

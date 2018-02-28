@@ -2669,6 +2669,13 @@ static const struct drm_plane_helper_funcs zynqmp_disp_plane_helper_funcs = {
 	.atomic_async_update	= zynqmp_disp_plane_atomic_async_update,
 };
 
+static const struct xlnx_bridge_ops zynqmp_disp_xlnx_bridge_ops = {
+	.enable		= &zynqmp_disp_bridge_enable,
+	.disable	= &zynqmp_disp_bridge_disable,
+	.set_input	= &zynqmp_disp_bridge_set_input,
+	.get_input_fmts	= &zynqmp_disp_bridge_get_input_fmts,
+};
+
 static int zynqmp_disp_create_plane(struct zynqmp_disp *disp)
 {
 	struct zynqmp_disp_layer *layer;
@@ -2695,11 +2702,7 @@ static int zynqmp_disp_create_plane(struct zynqmp_disp *disp)
 
 	for (i = 0; i < ZYNQMP_DISP_NUM_LAYERS; i++) {
 		layer = &disp->layers[i];
-		layer->bridge.enable = &zynqmp_disp_bridge_enable;
-		layer->bridge.disable = &zynqmp_disp_bridge_disable;
-		layer->bridge.set_input = &zynqmp_disp_bridge_set_input;
-		layer->bridge.get_input_fmts =
-			&zynqmp_disp_bridge_get_input_fmts;
+		layer->bridge.ops = &zynqmp_disp_xlnx_bridge_ops;
 		layer->bridge.of_node = layer->of_node;
 		xlnx_bridge_register(&layer->bridge);
 	}

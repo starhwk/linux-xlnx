@@ -441,6 +441,15 @@ static int xcsc_parse_of(struct xilinx_csc *csc)
 	return 0;
 }
 
+static const struct xlnx_bridge_ops xilinx_csc_xlnx_bridge_ops = {
+	.enable			= &xilinx_csc_bridge_enable,
+	.disable		= &xilinx_csc_bridge_disable,
+	.set_input		= &xilinx_csc_bridge_set_input,
+	.get_input_fmts		= &xilinx_csc_bridge_get_input_fmts,
+	.set_output		= &xilinx_csc_bridge_set_output,
+	.get_output_fmts	= &xilinx_csc_bridge_get_output_fmts,
+};
+
 static int xilinx_csc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -463,12 +472,7 @@ static int xilinx_csc_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 	gpiod_set_value_cansleep(csc->rst_gpio, XCSC_RESET_DEASSERT);
-	csc->bridge.enable = &xilinx_csc_bridge_enable;
-	csc->bridge.disable = &xilinx_csc_bridge_disable;
-	csc->bridge.set_input = &xilinx_csc_bridge_set_input;
-	csc->bridge.get_input_fmts = &xilinx_csc_bridge_get_input_fmts;
-	csc->bridge.set_output = &xilinx_csc_bridge_set_output;
-	csc->bridge.get_output_fmts = &xilinx_csc_bridge_get_output_fmts;
+	csc->bridge.ops = &xilinx_csc_xlnx_bridge_ops;
 	csc->bridge.of_node = dev->of_node;
 
 	ret = xlnx_bridge_register(&csc->bridge);
