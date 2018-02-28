@@ -298,12 +298,76 @@ static int xlnx_compare_of(struct device *dev, void *data)
 static int xlnx_probe(struct device *master_dev)
 {
 	struct device *dev = master_dev->parent;
+	struct device_node *ep, *port, *remote, *parent;
 	struct component_match *match = NULL;
+	int i;
 
 	if (!dev->of_node)
 		return -EINVAL;
 
 	component_match_add(master_dev, &match, xlnx_compare_of, dev->of_node);
+
+	for (i = 0; ; i++) {
+		port = of_parse_phandle(dev->of_node, "ports", i);
+		if (!port)
+			break;
+
+		parent = of_get_parent(port);
+		of_node_put(port);
+		if (!of_node_cmp(parent->name, "ports")) {
+			port = parent;
+			parent = of_get_parent(parent);
+			of_node_put(port);
+		}
+
+		if (!of_device_is_available(parent)) {
+			of_node_put(parent);
+			continue;
+		}
+
+		component_match_add(master_dev, &match, xlnx_compare_of,
+				    parent);
+		of_node_put(parent);
+	}
+
+	parent = dev->of_node;
+	for (i = 0; ; i++) {
+		parent = of_node_get(parent);
+		if (!of_device_is_available(parent)) {
+			of_node_put(parent);
+			continue;
+		}
+
+		for_each_endpoint_of_node(parent, ep) {
+			remote = of_graph_get_remote_port_parent(ep);
+			if (!remote || !of_device_is_available(remote) ||
+			    remote == dev->of_node) {
+				of_node_put(remote);
+				continue;
+			} else if (!of_device_is_available(remote->parent)) {
+				dev_warn(dev, "parent dev of %s unavailable\n",
+					 remote->full_name);
+				of_node_put(remote);
+				continue;
+			}
+			component_match_add(master_dev, &match, xlnx_compare_of,
+					    remote);
+			of_node_put(remote);
+		}
+		of_node_put(parent);
+
+		port = of_parse_phandle(dev->of_node, "ports", i);
+		if (!port)
+			break;
+
+		parent = of_get_parent(port);
+		of_node_put(port);
+		if (!of_node_cmp(parent->name, "ports")) {
+			port = parent;
+			parent = of_get_parent(parent);
+			of_node_put(port);
+		}
+	}
 
 	return component_master_add_with_match(master_dev, &xlnx_master_ops,
 					       match);
