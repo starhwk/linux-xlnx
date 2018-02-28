@@ -54,10 +54,12 @@ unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	unsigned int align = 1;
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_align)
 			align = ALIGN(align, crtc->get_align(crtc));
 	}
+	mutex_unlock(&helper->lock);
 
 	return align;
 }
@@ -67,10 +69,12 @@ u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	u64 mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_dma_mask)
 			mask = min(mask, crtc->get_dma_mask(crtc));
 	}
+	mutex_unlock(&helper->lock);
 
 	return mask;
 }
@@ -80,10 +84,12 @@ int xlnx_crtc_helper_get_max_width(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	int width = S32_MAX;
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_max_width)
 			width = min(width, crtc->get_max_width(crtc));
 	}
+	mutex_unlock(&helper->lock);
 
 	return width;
 }
@@ -93,10 +99,12 @@ int xlnx_crtc_helper_get_max_height(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	int height = S32_MAX;
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_max_height)
 			height = min(height, crtc->get_max_height(crtc));
 	}
+	mutex_unlock(&helper->lock);
 
 	return height;
 }
@@ -106,14 +114,18 @@ u32 xlnx_crtc_helper_get_format(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	u32 result = 0, format;
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_format) {
 			format = crtc->get_format(crtc);
-			if (result && result != format)
+			if (result && result != format) {
+				mutex_unlock(&helper->lock);
 				return 0;
+			}
 			result = format;
 		}
 	}
+	mutex_unlock(&helper->lock);
 
 	return result;
 }
