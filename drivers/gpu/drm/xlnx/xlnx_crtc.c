@@ -49,8 +49,6 @@ struct xlnx_crtc_helper {
 	struct drm_device *drm;
 };
 
-#define XLNX_CRTC_MAX_HEIGHT_WIDTH	UINT_MAX
-
 unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
@@ -84,7 +82,7 @@ u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper)
 int xlnx_crtc_helper_get_max_width(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	unsigned int width = XLNX_CRTC_MAX_HEIGHT_WIDTH, tmp;
+	int width = S32_MAX, tmp;
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_max_width) {
@@ -99,7 +97,7 @@ int xlnx_crtc_helper_get_max_width(struct xlnx_crtc_helper *helper)
 int xlnx_crtc_helper_get_max_height(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	unsigned int height = XLNX_CRTC_MAX_HEIGHT_WIDTH, tmp;
+	int height = S32_MAX, tmp;
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_max_height) {
@@ -111,7 +109,7 @@ int xlnx_crtc_helper_get_max_height(struct xlnx_crtc_helper *helper)
 	return height;
 }
 
-uint32_t xlnx_crtc_helper_get_format(struct xlnx_crtc_helper *helper)
+u32 xlnx_crtc_helper_get_format(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
 	u32 format = 0, tmp;
