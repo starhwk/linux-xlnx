@@ -39,8 +39,8 @@ struct xlnx_crtc {
 	int (*get_max_width)(struct xlnx_crtc *crtc);
 	int (*get_max_height)(struct xlnx_crtc *crtc);
 	uint32_t (*get_format)(struct xlnx_crtc *crtc);
-	uint32_t (*get_cursor_width)(struct xlnx_crtc *crtc);
-	uint32_t (*get_cursor_height)(struct xlnx_crtc *crtc);
+	u32 (*get_cursor_width)(struct xlnx_crtc *crtc);
+	u32 (*get_cursor_height)(struct xlnx_crtc *crtc);
 };
 
 /*
