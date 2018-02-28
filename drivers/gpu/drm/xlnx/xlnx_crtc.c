@@ -49,7 +49,7 @@ u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper)
 	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->ops->get_dma_mask)
-			mask = min(mask, crtc->ops->get_dma_mask(crtc));
+			mask &= crtc->ops->get_dma_mask(crtc);
 	}
 	mutex_unlock(&helper->lock);
 
