@@ -51,12 +51,6 @@ Required layer properties
 - dma-names: The identifier strings are required. "gfx0" for graphics layer
   dma channel. "vid" followed by index (0 - 2) for video layer dma channels.
 
-Optional child node
-
-- The driver populates any child device node in this node. This can be used,
-  for example, to populate the sound device from the DisplayPort subsystem
-  driver.
-
 Example:
 	zynqmp-display-subsystem@fd4a0000 {
 		compatible = "xlnx,zynqmp-dpsub-1.7";
