@@ -1473,7 +1473,8 @@ static const struct drm_connector_funcs zynqmp_dp_connector_funcs = {
 	.atomic_get_property	= zynqmp_dp_connector_atomic_get_property,
 };
 
-static struct drm_connector_helper_funcs zynqmp_dp_connector_helper_funcs = {
+static const struct drm_connector_helper_funcs
+zynqmp_dp_connector_helper_funcs = {
 	.get_modes	= zynqmp_dp_connector_get_modes,
 	.best_encoder	= zynqmp_dp_connector_best_encoder,
 	.mode_valid	= zynqmp_dp_connector_mode_valid,
