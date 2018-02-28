@@ -135,10 +135,12 @@ u32 xlnx_crtc_helper_get_cursor_width(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	u32 width = U32_MAX;
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_cursor_width)
 			width = min(width, crtc->get_cursor_width(crtc));
 	}
+	mutex_unlock(&helper->lock);
 
 	return width;
 }
@@ -148,10 +150,12 @@ u32 xlnx_crtc_helper_get_cursor_height(struct xlnx_crtc_helper *helper)
 	struct xlnx_crtc *crtc;
 	u32 height = U32_MAX;
 
+	mutex_lock(&helper->lock);
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_cursor_height)
 			height = min(height, crtc->get_cursor_height(crtc));
 	}
+	mutex_unlock(&helper->lock);
 
 	return height;
 }
