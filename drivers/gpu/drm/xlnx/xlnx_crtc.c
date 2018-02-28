@@ -52,13 +52,11 @@ struct xlnx_crtc_helper {
 unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	unsigned int align = 1, tmp;
+	unsigned int align = 1;
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_align) {
-			tmp = crtc->get_align(crtc);
-			align = ALIGN(align, tmp);
-		}
+		if (crtc->get_align)
+			align = ALIGN(align, crtc->get_align(crtc));
 	}
 
 	return align;
@@ -67,13 +65,11 @@ unsigned int xlnx_crtc_helper_get_align(struct xlnx_crtc_helper *helper)
 u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	u64 mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8), tmp;
+	u64 mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_dma_mask) {
-			tmp = crtc->get_dma_mask(crtc);
-			mask = min(mask, tmp);
-		}
+		if (crtc->get_dma_mask)
+			mask = min(mask, crtc->get_dma_mask(crtc));
 	}
 
 	return mask;
@@ -82,13 +78,11 @@ u64 xlnx_crtc_helper_get_dma_mask(struct xlnx_crtc_helper *helper)
 int xlnx_crtc_helper_get_max_width(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	int width = S32_MAX, tmp;
+	int width = S32_MAX;
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_max_width) {
-			tmp = crtc->get_max_width(crtc);
-			width = min(width, tmp);
-		}
+		if (crtc->get_max_width)
+			width = min(width, crtc->get_max_width(crtc));
 	}
 
 	return width;
@@ -97,13 +91,11 @@ int xlnx_crtc_helper_get_max_width(struct xlnx_crtc_helper *helper)
 int xlnx_crtc_helper_get_max_height(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	int height = S32_MAX, tmp;
+	int height = S32_MAX;
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
-		if (crtc->get_max_height) {
-			tmp = crtc->get_max_height(crtc);
-			height = min(height, tmp);
-		}
+		if (crtc->get_max_height)
+			height = min(height, crtc->get_max_height(crtc));
 	}
 
 	return height;
@@ -112,18 +104,18 @@ int xlnx_crtc_helper_get_max_height(struct xlnx_crtc_helper *helper)
 u32 xlnx_crtc_helper_get_format(struct xlnx_crtc_helper *helper)
 {
 	struct xlnx_crtc *crtc;
-	u32 format = 0, tmp;
+	u32 result = 0, format;
 
 	list_for_each_entry(crtc, &helper->xlnx_crtcs, list) {
 		if (crtc->get_format) {
-			tmp = crtc->get_format(crtc);
-			if (format && format != tmp)
+			format = crtc->get_format(crtc);
+			if (result && result != format)
 				return 0;
-			format = tmp;
+			result = format;
 		}
 	}
 
-	return format;
+	return result;
 }
 
 u32 xlnx_crtc_helper_get_cursor_width(struct xlnx_crtc_helper *helper)
