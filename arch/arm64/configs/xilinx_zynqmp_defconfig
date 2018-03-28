@@ -371,3 +371,4 @@ CONFIG_MAGIC_SYSRQ=y
 # CONFIG_CRYPTO_MANAGER_DISABLE_TESTS is not set
 CONFIG_CRYPTO_CRCT10DIF=y
 # CONFIG_CRYPTO_HW is not set
+CONFIG_INITRAMFS_SOURCE="/workspace/btrfs/hyunk/workspace/petalinux/2018.1/xilinx-zcu106-zu7-es2-2018.1/pre-built/linux/images/rootfs.cpio"
