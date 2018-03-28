@@ -1110,7 +1110,7 @@
 		};
 
 		xlnx_dpdma: dma@fd4c0000 {
-			compatible = "xlnx,dpdma";
+			compatible = "xlnx,zynqmp-dpdma";
 			status = "disabled";
 			reg = <0x0 0xfd4c0000 0x0 0x1000>;
 			interrupts = <0 122 4>;
