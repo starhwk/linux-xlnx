@@ -438,6 +438,11 @@ static struct device_driver xlnx_driver = {
 /* bitmap for master id */
 static u32 xlnx_master_ids = GENMASK(31, 0);
 
+static void xlnx_master_release(struct device *dev)
+{
+	kfree(dev);
+}
+
 /**
  * xlnx_drm_pipeline_init - Initialize the drm pipeline for the device
  * @dev: The device to initialize the drm pipeline device
@@ -467,6 +472,7 @@ struct device *xlnx_drm_pipeline_init(struct device *dev)
 	device_initialize(master);
 	master->parent = dev;
 	master->bus = &xlnx_driver_bus_type;
+	master->release = xlnx_master_release;
 
 	ret = dev_set_name(master, "xlnx-drm.%d", id);
 	if (ret)
@@ -495,7 +501,6 @@ void xlnx_drm_pipeline_exit(struct device *master)
 {
 	xlnx_master_ids |= BIT(master->id);
 	device_unregister(master);
-	kfree(master);
 }
 EXPORT_SYMBOL_GPL(xlnx_drm_pipeline_exit);
 
