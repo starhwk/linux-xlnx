@@ -17,6 +17,7 @@ struct xlnx_crtc_helper;
 struct device *xlnx_drm_pipeline_init(struct device *parent);
 void xlnx_drm_pipeline_exit(struct device *pipeline);
 
+uint32_t xlnx_get_format(struct drm_device *drm);
 unsigned int xlnx_get_align(struct drm_device *drm);
 struct xlnx_crtc_helper *xlnx_get_crtc_helper(struct drm_device *drm);
 struct xlnx_bridge_helper *xlnx_get_bridge_helper(struct drm_device *drm);

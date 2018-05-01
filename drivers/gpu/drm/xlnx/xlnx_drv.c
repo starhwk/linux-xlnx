@@ -77,6 +77,19 @@ unsigned int xlnx_get_align(struct drm_device *drm)
 	return xlnx_crtc_helper_get_align(&xlnx_drm->crtc_helper);
 }
 
+/**
+ * xlnx_get_format - Return the current format of CRTC
+ * @drm: DRM device
+ *
+ * Return: the current CRTC format
+ */
+uint32_t xlnx_get_format(struct drm_device *drm)
+{
+	struct xlnx_drm *xlnx_drm = drm->dev_private;
+
+	return xlnx_crtc_helper_get_format(&xlnx_drm->crtc_helper);
+}
+
 static void xlnx_output_poll_changed(struct drm_device *drm)
 {
 	struct xlnx_drm *xlnx_drm = drm->dev_private;
